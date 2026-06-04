@@ -1,35 +1,25 @@
-# IPL Win Predictor — Python dependencies
-# Install: pip install -r requirements.txt
+# Phase 1 — Data ingestion
+pandas
+numpy
+pyarrow
+duckdb
+requests
+tqdm
+python-dotenv
+pyyaml
+loguru
 
-# ── Data & storage ─────────────────────────────────────────
-pandas>=2.0.0
-duckdb>=0.10.0
-pyarrow>=14.0.0       # parquet support
-requests>=2.31.0
-tqdm>=4.66.0
+# Phase 2 — Feature engineering & ML
+scikit-learn
+xgboost
+evidently
 
-# ── Feature engineering & ML ───────────────────────────────
-numpy>=1.26.0
-scikit-learn>=1.4.0
-xgboost>=2.0.0
-evidently>=0.4.0      # feature drift monitoring
+# Phase 3 — Model serving
+fastapi
+uvicorn
 
-# ── LangGraph / LangChain (Phase 4) ───────────────────────
-langgraph>=0.1.0
-langchain>=0.2.0
-langchain-community>=0.2.0
-pydantic>=2.7.0
-langchain-core>=0.2.0
-langchain-openai>=0.1.0
-
-# API Clients
-groq>=0.9.0
-openai>=1.30.0
-
-# ── Model serving (Phase 3) ────────────────────────────────
-fastapi>=0.111.0
-uvicorn>=0.29.0
-
-# ── Utilities ──────────────────────────────────────────────
-python-dotenv>=1.0.0
-pyyaml>=6.0
+# Phase 4 — LangGraph agents
+langgraph
+langchain
+langchain-anthropic
+anthropic
