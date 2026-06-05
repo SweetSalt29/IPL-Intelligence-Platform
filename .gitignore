@@ -1,4 +1,28 @@
+# Virtual environment
 ipl_venv/
+
+# Secrets
 .env
+
+# Python bytecode
 __pycache__/
 *.pyc
+*.pyo
+
+# Package install metadata
+*.egg-info/
+
+# Data — large files, not committed
+data/
+
+# Model artifacts
+src/models/artifacts/
+
+# Logs
+logs/
+
+# Notebooks checkpoints
+notebooks/.ipynb_checkpoints/
+
+# OS
+.DS_Store

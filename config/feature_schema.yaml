@@ -1,0 +1,377 @@
+# =============================================================================
+# config/feature_schema.yaml
+# =============================================================================
+# THE CONTRACT between the offline ETL (training) and the live inference
+# pipeline (LangGraph agents). Both pipelines must import and apply this schema.
+# Any feature added, renamed, or removed here must be reflected in BOTH.
+#
+# STRUCTURE:
+#   Each feature has:
+#     source    — which raw dataset it originates from
+#     dtype     — final dtype after transformation
+#     fillna    — fallback value when data is unavailable (never silent null)
+#     normalize — whether to apply min-max scaling before model input
+#     description — plain English explanation (used by Narrative Agent)
+# =============================================================================
+
+# ── 1. MATCH CONTEXT FEATURES ─────────────────────────────────────────────────
+match_context:
+
+  toss_winner_is_team1:
+    source: cricsheet
+    dtype: int8          # 1 = team batting first won toss, 0 = team batting second
+    fillna: 0
+    normalize: false
+    description: "Whether the team batting first won the toss"
+
+  toss_decision_bat:
+    source: cricsheet
+    dtype: int8          # 1 = elected to bat, 0 = elected to field
+    fillna: 0
+    normalize: false
+    description: "Toss decision — bat (1) or field (0)"
+
+  is_day_match:
+    source: cricsheet
+    dtype: int8          # 1 = day match, 0 = day-night / night
+    fillna: 0
+    normalize: false
+    description: "Day match flag — night matches carry dew risk"
+
+  season_stage:
+    source: cricsheet
+    dtype: int8          # 0=league, 1=qualifier, 2=eliminator, 3=final
+    fillna: 0
+    normalize: false
+    description: "Stage of tournament — knockout pressure affects outcomes"
+
+  match_number_in_season:
+    source: schedule
+    dtype: int16
+    fillna: 1
+    normalize: true
+    description: "Sequential match number in season — proxy for team form maturity"
+
+# ── 2. VENUE FEATURES ─────────────────────────────────────────────────────────
+venue:
+
+  venue_encoded:
+    source: cricsheet
+    dtype: int16         # label-encoded venue ID
+    fillna: -1
+    normalize: false
+    description: "Venue identifier — captures ground-specific batting/bowling tendencies"
+
+  team1_home_flag:
+    source: schedule
+    dtype: int8
+    fillna: 0
+    normalize: false
+    description: "Team batting first playing at home ground"
+
+  team2_home_flag:
+    source: schedule
+    dtype: int8
+    fillna: 0
+    normalize: false
+    description: "Team batting second playing at home ground"
+
+  venue_avg_first_innings_score:
+    source: cricsheet        # computed from historical matches at this venue
+    dtype: float32
+    fillna: 165.0            # IPL historical average
+    normalize: true
+    description: "Historical average first innings score at this venue"
+
+  venue_chasing_win_rate:
+    source: cricsheet
+    dtype: float32           # proportion 0.0–1.0
+    fillna: 0.5
+    normalize: false
+    description: "Historical proportion of matches won by chasing team at this venue"
+
+  venue_avg_powerplay_score:
+    source: cricsheet
+    dtype: float32
+    fillna: 48.0
+    normalize: true
+    description: "Historical average powerplay (overs 1–6) score at this venue"
+
+# ── 3. ENVIRONMENTAL / EXTRANEOUS FEATURES ────────────────────────────────────
+environmental:
+
+  dew_risk_flag:
+    source: weather
+    dtype: int8              # 1 = high dew risk (dewpoint >15°C AND humidity >70%)
+    fillna: 0
+    normalize: false
+    description: "Binary dew risk — high dew makes ball slippery, favours chasing team"
+
+  temp_night_avg:
+    source: weather
+    dtype: float32           # degrees Celsius
+    fillna: 27.0
+    normalize: true
+    description: "Average temperature during match hours — affects stamina and swing"
+
+  humidity_night_avg:
+    source: weather
+    dtype: float32           # percentage 0–100
+    fillna: 65.0
+    normalize: true
+    description: "Average humidity during match hours"
+
+  dewpoint_night_avg:
+    source: weather
+    dtype: float32           # degrees Celsius
+    fillna: 18.0
+    normalize: true
+    description: "Average dewpoint during match hours — direct dew risk indicator"
+
+  windspeed_night_avg:
+    source: weather
+    dtype: float32           # km/h
+    fillna: 10.0
+    normalize: true
+    description: "Average wind speed — affects lofted shots and swing bowling"
+
+  pressure_night_avg:
+    source: weather
+    dtype: float32           # hPa
+    fillna: 1010.0
+    normalize: true
+    description: "Atmospheric pressure — lower at altitude (Dharamshala) increases six distance"
+
+  precipitation_mm:
+    source: weather
+    dtype: float32
+    fillna: 0.0
+    normalize: true
+    description: "Total precipitation on match day — affects pitch and outfield"
+
+# ── 4. FATIGUE & SCHEDULING FEATURES ──────────────────────────────────────────
+fatigue:
+
+  team1_rest_days:
+    source: schedule
+    dtype: int8              # capped at 14; 99 = first match of season → mapped to 7
+    fillna: 7
+    normalize: true
+    description: "Rest days for team batting first since last match"
+
+  team2_rest_days:
+    source: schedule
+    dtype: int8
+    fillna: 7
+    normalize: true
+    description: "Rest days for team batting second since last match"
+
+  team1_back_to_back:
+    source: schedule
+    dtype: int8
+    fillna: 0
+    normalize: false
+    description: "Team batting first played yesterday (<2 days rest)"
+
+  team2_back_to_back:
+    source: schedule
+    dtype: int8
+    fillna: 0
+    normalize: false
+    description: "Team batting second played yesterday (<2 days rest)"
+
+  team1_travel_km:
+    source: schedule
+    dtype: float32
+    fillna: 0.0
+    normalize: true
+    description: "Distance travelled to this match by team batting first"
+
+  team2_travel_km:
+    source: schedule
+    dtype: float32
+    fillna: 0.0
+    normalize: true
+    description: "Distance travelled to this match by team batting second"
+
+  team1_travel_burden:
+    source: schedule
+    dtype: float32           # composite: travel_km/1000 + 1/rest_days
+    fillna: 0.0
+    normalize: true
+    description: "Composite fatigue score for team batting first"
+
+  team2_travel_burden:
+    source: schedule
+    dtype: float32
+    fillna: 0.0
+    normalize: true
+    description: "Composite fatigue score for team batting second"
+
+  team1_season_match_num:
+    source: schedule
+    dtype: int8
+    fillna: 1
+    normalize: true
+    description: "How many matches team 1 has played this season — form/fatigue proxy"
+
+  team2_season_match_num:
+    source: schedule
+    dtype: int8
+    fillna: 1
+    normalize: true
+    description: "How many matches team 2 has played this season"
+
+# ── 5. TEAM FORM FEATURES ─────────────────────────────────────────────────────
+team_form:
+
+  team1_win_rate_last5:
+    source: cricsheet        # computed rolling window
+    dtype: float32           # 0.0–1.0
+    fillna: 0.5
+    normalize: false
+    description: "Team 1 win rate in last 5 matches — recent form signal"
+
+  team2_win_rate_last5:
+    source: cricsheet
+    dtype: float32
+    fillna: 0.5
+    normalize: false
+    description: "Team 2 win rate in last 5 matches"
+
+  team1_avg_score_last5:
+    source: cricsheet
+    dtype: float32
+    fillna: 160.0
+    normalize: true
+    description: "Team 1 average total scored in last 5 matches"
+
+  team2_avg_score_last5:
+    source: cricsheet
+    dtype: float32
+    fillna: 160.0
+    normalize: true
+    description: "Team 2 average total scored in last 5 matches"
+
+  team1_avg_conceded_last5:
+    source: cricsheet
+    dtype: float32
+    fillna: 160.0
+    normalize: true
+    description: "Team 1 average total conceded in last 5 matches"
+
+  team2_avg_conceded_last5:
+    source: cricsheet
+    dtype: float32
+    fillna: 160.0
+    normalize: true
+    description: "Team 2 average total conceded in last 5 matches"
+
+  team1_chasing_win_rate:
+    source: cricsheet        # season-to-date chasing win rate for team1
+    dtype: float32
+    fillna: 0.5
+    normalize: false
+    description: "Team 1 historical win rate when chasing — chasing strength signal"
+
+  team2_chasing_win_rate:
+    source: cricsheet
+    dtype: float32
+    fillna: 0.5
+    normalize: false
+    description: "Team 2 historical win rate when chasing"
+
+# ── 6. PLAYER STRENGTH FEATURES ───────────────────────────────────────────────
+# Aggregated squad-level signals — no individual player tracking at match level
+# to avoid data leakage (playing XI is often not public until toss)
+player_strength:
+
+  team1_top4_avg_sr:
+    source: player_profiles  # average strike rate of top-4 batters by recent form
+    dtype: float32
+    fillna: 130.0
+    normalize: true
+    description: "Average death-over strike rate of team 1's top 4 batters"
+
+  team2_top4_avg_sr:
+    source: player_profiles
+    dtype: float32
+    fillna: 130.0
+    normalize: true
+    description: "Average death-over strike rate of team 2's top 4 batters"
+
+  team1_bowling_avg_economy:
+    source: player_profiles
+    dtype: float32
+    fillna: 8.5
+    normalize: true
+    description: "Average economy of team 1's likely top-4 bowlers"
+
+  team2_bowling_avg_economy:
+    source: player_profiles
+    dtype: float32
+    fillna: 8.5
+    normalize: true
+    description: "Average economy of team 2's likely top-4 bowlers"
+
+  team1_bowling_avg_economy_death:
+    source: player_profiles
+    dtype: float32
+    fillna: 9.5
+    normalize: true
+    description: "Average death-over economy of team 1's bowlers"
+
+  team2_bowling_avg_economy_death:
+    source: player_profiles
+    dtype: float32
+    fillna: 9.5
+    normalize: true
+    description: "Average death-over economy of team 2's bowlers"
+
+# ── 7. PITCH DETERIORATION INDEX ──────────────────────────────────────────────
+pitch:
+
+  pitch_deterioration_index:
+    source: cricsheet        # proxy: avg wickets in overs 13-20 vs 1-12 at venue
+    dtype: float32           # 0.0–1.0, higher = more deterioration expected
+    fillna: 0.5
+    normalize: false
+    description: "Expected pitch deterioration — favours bowling team in 2nd innings"
+
+  venue_spin_factor:
+    source: cricsheet        # ratio of spinner wickets to total at venue
+    dtype: float32
+    fillna: 0.35
+    normalize: false
+    description: "How spin-friendly the venue is — affects toss decision value"
+
+# ── LABEL ─────────────────────────────────────────────────────────────────────
+label:
+  chasing_team_won:
+    source: cricsheet
+    dtype: int8              # 1 = team batting second won, 0 = team batting first won
+    description: "Binary target — chasing team won the match"
+
+# =============================================================================
+# FEATURE GROUPS for model interpretation and Narrative Agent
+# =============================================================================
+feature_groups:
+  high_signal:   [toss_decision_bat, dew_risk_flag, venue_chasing_win_rate,
+                  team1_chasing_win_rate, team2_chasing_win_rate,
+                  team1_win_rate_last5, team2_win_rate_last5]
+  environmental: [dew_risk_flag, temp_night_avg, humidity_night_avg,
+                  dewpoint_night_avg, windspeed_night_avg, pressure_night_avg,
+                  precipitation_mm]
+  fatigue:       [team1_rest_days, team2_rest_days, team1_back_to_back,
+                  team2_back_to_back, team1_travel_km, team2_travel_km,
+                  team1_travel_burden, team2_travel_burden]
+  form:          [team1_win_rate_last5, team2_win_rate_last5,
+                  team1_avg_score_last5, team2_avg_score_last5,
+                  team1_chasing_win_rate, team2_chasing_win_rate]
+  venue:         [venue_encoded, venue_avg_first_innings_score,
+                  venue_chasing_win_rate, venue_avg_powerplay_score,
+                  team1_home_flag, team2_home_flag,
+                  pitch_deterioration_index, venue_spin_factor]
+  player:        [team1_top4_avg_sr, team2_top4_avg_sr,
+                  team1_bowling_avg_economy, team2_bowling_avg_economy,
+                  team1_bowling_avg_economy_death, team2_bowling_avg_economy_death]
