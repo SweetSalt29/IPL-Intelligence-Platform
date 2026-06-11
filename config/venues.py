@@ -54,25 +54,41 @@ VENUE_ALIASES = {
 }
 
 HOME_GROUNDS = {
-    "Royal Challengers Bangalore":  "M Chinnaswamy Stadium",
-    "Royal Challengers Bengaluru":  "M Chinnaswamy Stadium",
-    "Mumbai Indians":               "Wankhede Stadium",
-    "Kolkata Knight Riders":        "Eden Gardens",
-    "Chennai Super Kings":          "MA Chidambaram Stadium",
-    "Delhi Daredevils":             "Arun Jaitley Stadium",
-    "Delhi Capitals":               "Arun Jaitley Stadium",
-    "Sunrisers Hyderabad":          "Rajiv Gandhi International Stadium",
-    "Deccan Chargers":              "Rajiv Gandhi International Stadium",
-    "Kings XI Punjab":              "Punjab Cricket Association IS Bindra Stadium",
-    "Punjab Kings":                 "Punjab Cricket Association IS Bindra Stadium",
-    "Rajasthan Royals":             "Sawai Mansingh Stadium",
-    "Gujarat Titans":               "Narendra Modi Stadium",
-    "Lucknow Super Giants":         "Ekana Cricket Stadium",
-    "Kochi Tuskers Kerala":         "Greenfield International Stadium",
-    "Pune Warriors":                "Maharashtra Cricket Association Stadium",
-    "Rising Pune Supergiant":       "Maharashtra Cricket Association Stadium",
-    "Rising Pune Supergiants":      "Maharashtra Cricket Association Stadium",
-    "Gujarat Lions":                "Narendra Modi Stadium",
+    # RCB — Cricsheet uses both spellings across seasons
+    "Royal Challengers Bangalore":   "M Chinnaswamy Stadium",
+    "Royal Challengers Bengaluru":   "M Chinnaswamy Stadium",
+    # MI
+    "Mumbai Indians":                "Wankhede Stadium",
+    # KKR
+    "Kolkata Knight Riders":         "Eden Gardens",
+    # CSK
+    "Chennai Super Kings":           "MA Chidambaram Stadium",
+    # Delhi — two franchise names
+    "Delhi Daredevils":              "Arun Jaitley Stadium",
+    "Delhi Capitals":                "Arun Jaitley Stadium",
+    # SRH / Deccan
+    "Sunrisers Hyderabad":           "Rajiv Gandhi International Stadium",
+    "Deccan Chargers":               "Rajiv Gandhi International Stadium",
+    # Punjab — three franchise names used in Cricsheet
+    "Kings XI Punjab":               "Punjab Cricket Association IS Bindra Stadium",
+    "Punjab Kings":                  "Punjab Cricket Association IS Bindra Stadium",
+    "Punjab Cricket Association":    "Punjab Cricket Association IS Bindra Stadium",
+    # RR
+    "Rajasthan Royals":              "Sawai Mansingh Stadium",
+    # GT
+    "Gujarat Titans":                "Narendra Modi Stadium",
+    # LSG
+    "Lucknow Super Giants":          "Ekana Cricket Stadium",
+    # Defunct franchises
+    "Kochi Tuskers Kerala":          "Greenfield International Stadium",
+    "Pune Warriors":                 "Maharashtra Cricket Association Stadium",
+    "Rising Pune Supergiant":        "Maharashtra Cricket Association Stadium",
+    "Rising Pune Supergiants":       "Maharashtra Cricket Association Stadium",
+    "Gujarat Lions":                 "Narendra Modi Stadium",
+    # Additional Cricsheet variant spellings seen in real data
+    "Royal Challengers":             "M Chinnaswamy Stadium",
+    "Delhi":                         "Arun Jaitley Stadium",
+    "Hyderabad":                     "Rajiv Gandhi International Stadium",
 }
 
 

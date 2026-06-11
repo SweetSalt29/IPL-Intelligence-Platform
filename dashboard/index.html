@@ -1,0 +1,1075 @@
+<!-- START OF FILE Paste June 11, 2026 - 11:15AM -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPL Intelligence — Pit-Wall System v3.4</title>
+    
+    <!-- TailWind, Chart.js, FontAwesome & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- React & Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['Orbitron', 'sans-serif'],
+                        body: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        darkBg:      '#050507',
+                        cardBg:      '#0a0a0f',
+                        borderClr:   '#161622',
+                        brandPurple: '#c084fc',
+                        brandTeal:   '#2dd4bf',
+                        brandOrange: '#f97316',
+                        brandGreen:  '#4ade80',
+                        brandPink:   '#f472b6',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #050507; 
+            overflow-x: hidden;
+        }
+
+        /* Sci-Fi Scanner Overlay Texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(255, 255, 255, 0.01) 2px,
+                rgba(255, 255, 255, 0.01) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* Subtle tactical pulse */
+        @keyframes status-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: 0.3; transform: scale(0.92); }
+        }
+        .status-live { animation: status-pulse 1.8s ease-in-out infinite; }
+
+        /* Tech bracket corner frames */
+        .tech-card {
+            position: relative;
+            background: rgba(10, 10, 15, 0.85);
+            border: 1px solid rgba(22, 22, 34, 0.9);
+            box-shadow: inset 0 0 15px rgba(168, 85, 247, 0.02);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .tech-card::before, .tech-card::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-color: rgba(168, 85, 247, 0.4);
+            border-style: solid;
+            pointer-events: none;
+        }
+        .tech-card::before {
+            top: -1px; left: -1px;
+            border-width: 1px 0 0 1px;
+        }
+        .tech-card::after {
+            bottom: -1px; right: -1px;
+            border-width: 0 1px 1px 0;
+        }
+        .tech-card:hover {
+            border-color: rgba(168, 85, 247, 0.3);
+            box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.05);
+            transform: translateY(-1px);
+        }
+
+        /* Glowing accents */
+        .glow-purple { box-shadow: 0 0 30px rgba(168, 85, 247, 0.15); }
+        .glow-teal   { box-shadow: 0 0 30px rgba(45, 212, 191, 0.15); }
+        .glow-orange { box-shadow: 0 0 30px rgba(249, 115, 22, 0.15); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(5, 5, 7, 0.5); }
+        ::-webkit-scrollbar-thumb { background: #1f1f2e; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b3b54; }
+
+        /* Screen Flicker Effect */
+        @keyframes crt-flicker {
+            0% { opacity: 0.97; }
+            50% { opacity: 1; }
+            100% { opacity: 0.98; }
+        }
+        .crt-monitor {
+            animation: crt-flicker 0.15s infinite;
+        }
+    </style>
+</head>
+<body class="font-body text-zinc-200 min-h-screen select-none">
+    <div id="root"></div>
+
+    <!-- React Application Code -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            // ─── STATE MANAGEMENT ──────────────────────────────────────────
+            const [activeTab, setActiveTab] = useState('prematch');
+            const [currentOver, setCurrentOver] = useState(12);
+            const [miWinProb, setMiWinProb] = useState(54.0);
+            const [overTracker, setOverTracker] = useState([1,2,3,4,5,6,7,8,9,10,11,12]);
+            const [winProbData, setWinProbData] = useState([50,51,48,52,55,53,50,52,55,56,53,54]);
+            const [weatherApiOnline, setWeatherApiOnline] = useState(true);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [showOverrideNotice, setShowOverrideNotice] = useState(false);
+            const [driftScore, setDriftScore] = useState(0.12);
+            
+            // Custom state values
+            const [matchMeta, setMatchMeta] = useState({
+                team1: 'Mumbai Indians',
+                team2: 'Chennai Super Kings',
+                venue: 'Wankhede Stadium',
+                date: '2025-04-15',
+                night: true,
+                validationPassed: true,
+                featuresActive: 44,
+                modelVersion: 'XGB-v2.6.4'
+            });
+
+            const [extraneousData, setExtraneousData] = useState({
+                fatigueT1: 0.56,
+                pitchDeterioration: 0.42,
+                restDays: 3,
+                heatStress: 0.68,
+                travelKm: 1200,
+                travelBurden: 0.72,
+                dewRisk: true,
+                dewOnsetOver: 14,
+                rawWeather: true
+            });
+
+            const [featureDrivers, setFeatureDrivers] = useState([
+                { name: 'Dew risk flag', score: 0.0821, pct: 82 },
+                { name: 'Venue chasing win rate', score: 0.0674, pct: 67 },
+                { name: 'Team 2 win rate (last 5)', score: 0.0542, pct: 54 },
+                { name: 'Dewpoint night avg.', score: 0.0398, pct: 40 },
+                { name: 'Team 1 travel burden', score: 0.0312, pct: 31 }
+            ]);
+
+            const [tacticalAlerts, setTacticalAlerts] = useState([
+                {
+                    id: 1,
+                    type: 'warning',
+                    title: 'Bowling Change Signal',
+                    text: 'Introduce left-arm spin now. Matchup metric shows 18.4% Strike Rate decrease vs current batting stance.',
+                    time: 'Over 11'
+                },
+                {
+                    id: 2,
+                    type: 'success',
+                    title: 'Momentum Shift',
+                    text: 'MI batting momentum +0.18 over baseline projection following back-to-back boundaries in Over 11.',
+                    time: 'Over 12'
+                }
+            ]);
+
+            const [narrativeText, setNarrativeText] = useState([
+                "TOSS RECOMMENDATION: Bowl First. CSK hold a 54% win probability as the chasing team at Wankhede tonight. The dew risk flag is the primary model driver — dewpoint has crossed 17°C with 78% humidity, and historical data from this venue confirms dew onset around over 14 in similar conditions.",
+                "MI's fatigue index is 0.56 — elevated due to 1,200km travel from Ahmedabad with only 3 days rest. Bowling accuracy in death overs historically drops 6–8% under similar fatigue loads. Priority: keep your main death bowler for overs 17–19, not 16.",
+                "TACTICAL BRIEF: Hold spinners until the ball dries at the strategic timeout. Use cross-seam on the wet surface between overs 12–15. Field placements: point up for skid-through deliveries."
+            ]);
+
+            const [terminalLogs, setTerminalLogs] = useState([
+                "SYSTEM: Initializing LangGraph multi-agent win-prediction environment...",
+                "INGESTION: Ingested 142 raw feature fields from local persistence layer.",
+                "EXTRANEOUS: Computed Fatigue Indexes for Mumbai Indians (T1) and Chennai Super Kings (T2)...",
+                "EXTRANEOUS_AGENT: Weather telemetry obtained from regional api feed.",
+                "VALIDATION: All structural validation schemas marked PASS.",
+                "PREDICTION: Platt-calibrated baseline engine run complete. Initializing Narrative parser..."
+            ]);
+
+            // Form overrides
+            const [overridePitch, setOverridePitch] = useState('none');
+            const [overrideInjury, setOverrideInjury] = useState('none');
+            const [overrideCustom, setOverrideCustom] = useState('');
+
+            // Ref objects
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+            const terminalEndRef = useRef(null);
+
+            // ─── EFFECTS & ENGINE CONTROLS ──────────────────────────────────
+            useEffect(() => {
+                if (terminalEndRef.current) {
+                    terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, [terminalLogs]);
+
+            // Chart Initialization & Rendering logic
+            useEffect(() => {
+                if (activeTab === 'pitwall') {
+                    const ctx = document.getElementById('winProbChartReact')?.getContext('2d');
+                    if (ctx) {
+                        if (chartInstance.current) {
+                            chartInstance.current.destroy();
+                        }
+
+                        const purpleGlow = ctx.createLinearGradient(0, 0, 0, 400);
+                        purpleGlow.addColorStop(0, 'rgba(168, 85, 247, 0.25)');
+                        purpleGlow.addColorStop(1, 'rgba(168, 85, 247, 0)');
+
+                        chartInstance.current = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: overTracker,
+                                datasets: [{
+                                    label: 'MI Real-time Win %',
+                                    data: winProbData,
+                                    borderColor: '#c084fc',
+                                    backgroundColor: purpleGlow,
+                                    fill: true,
+                                    tension: 0.35,
+                                    borderWidth: 2,
+                                    pointBackgroundColor: '#2dd4bf',
+                                    pointBorderColor: '#050507',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 4,
+                                    pointHoverRadius: 7,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false }
+                                },
+                                scales: {
+                                    y: {
+                                        min: 0,
+                                        max: 100,
+                                        ticks: { color: '#71717a', font: { size: 9, family: 'Fira Code' } },
+                                        grid: { color: '#161622' }
+                                    },
+                                    x: {
+                                        ticks: { color: '#71717a', font: { size: 9, family: 'Fira Code' } },
+                                        grid: { display: false }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+                return () => {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                        chartInstance.current = null;
+                    }
+                };
+            }, [activeTab, overTracker, winProbData]);
+
+            const logMessage = (text) => {
+                const timestamp = new Date().toLocaleTimeString();
+                setTerminalLogs(prev => [...prev, `[${timestamp}] ${text}`]);
+            };
+
+            // Advance Over simulation trigger
+            const simulateNewOver = () => {
+                if (currentOver >= 20) {
+                    alert('Simulation complete. End of innings. Reset state to run another match cycle.');
+                    return;
+                }
+
+                setIsAnalyzing(true);
+                const nextOver = currentOver + 1;
+                const swing = parseFloat(((Math.random() * 14) - 7).toFixed(1));
+                const nextProb = Math.min(95, Math.max(5, parseFloat((miWinProb + swing).toFixed(1))));
+
+                logMessage(`SIMULATION: Processing physical state modifications for Over ${nextOver}...`);
+
+                setTimeout(() => {
+                    setCurrentOver(nextOver);
+                    setMiWinProb(nextProb);
+                    setOverTracker(prev => [...prev, nextOver]);
+                    setWinProbData(prev => [...prev, nextProb]);
+
+                    // Add simulated drift
+                    const addedDrift = parseFloat((Math.random() * 0.04).toFixed(3));
+                    setDriftScore(prev => Math.min(0.24, parseFloat((prev + addedDrift).toFixed(2))));
+
+                    // Dynamic Live tactical alert triggers
+                    if (swing > 3.0) {
+                        const alertItem = {
+                            id: Date.now(),
+                            type: 'success',
+                            title: `Surge Detected — Over ${nextOver}`,
+                            text: `Mumbai Indians win probability surged by +${Math.abs(swing)}% due to calculated batting acceleration. Expected boundary rate exceeded.`,
+                            time: `Over ${nextOver}`
+                        };
+                        setTacticalAlerts(prev => [alertItem, ...prev]);
+                        logMessage(`XGBOOST: Momentum spike calculated (+${swing}%). Recalibrated predictions.`);
+                    } else if (swing < -3.0) {
+                        const alertItem = {
+                            id: Date.now(),
+                            type: 'danger',
+                            title: `Bowling Counter — Over ${nextOver}`,
+                            text: `CSK Bowling pressure registered. Win probability shifted ${Math.abs(swing)}% towards Chennai Super Kings. Expected run rate dropping.`,
+                            time: `Over ${nextOver}`
+                        };
+                        setTacticalAlerts(prev => [alertItem, ...prev]);
+                        logMessage(`XGBOOST: Defensive shift registered (${swing}%). Adjusting chasing parameters.`);
+                    } else {
+                        logMessage(`INGESTION: Normal game progression logged. Micro-adjustments calibrated.`);
+                    }
+
+                    setIsAnalyzing(false);
+                }, 400);
+            };
+
+            const resetSimulation = () => {
+                setIsAnalyzing(true);
+                logMessage("SYSTEM: Invoking master reset. Purging simulation caches.");
+                setTimeout(() => {
+                    setCurrentOver(12);
+                    setMiWinProb(54.0);
+                    setOverTracker([1,2,3,4,5,6,7,8,9,10,11,12]);
+                    setWinProbData([50,51,48,52,55,53,50,52,55,56,53,54]);
+                    setDriftScore(0.12);
+                    setTacticalAlerts([
+                        {
+                            id: 1,
+                            type: 'warning',
+                            title: 'Bowling Change Signal',
+                            text: 'Introduce left-arm spin now. Matchup metric shows 18.4% Strike Rate decrease vs current batting stance.',
+                            time: 'Over 11'
+                        }
+                    ]);
+                    setIsAnalyzing(false);
+                    logMessage("SYSTEM: Environment parameters initialized back to Baseline (Over 12).");
+                }, 500);
+            };
+
+            // Human Override node processing
+            const applyOverrideNode = (e) => {
+                e.preventDefault();
+                setIsAnalyzing(true);
+                logMessage("OVERRIDE: Active contextual input captured. Preparing LangGraph state intervention.");
+                
+                setTimeout(() => {
+                    let updatedNarrative = [...narrativeText];
+                    let probAdj = 0;
+                    
+                    if (overridePitch === 'damp') {
+                        probAdj -= 8.5;
+                        updatedNarrative.unshift("HUMAN INTERVENTION LOG: Analyst reported damp pitch conditions. Ball expected to grip and slow down dramatically. Advantage to team batting second decreases slightly; pitch deterioration index elevated.");
+                        setExtraneousData(prev => ({ ...prev, pitchDeterioration: 0.78 }));
+                    } else if (overridePitch === 'cracked') {
+                        probAdj += 6.0;
+                        updatedNarrative.unshift("HUMAN INTERVENTION LOG: Analyst reported dry, cracked surface. Fast breakdown expected. Spinners will dominate in the second innings.");
+                        setExtraneousData(prev => ({ ...prev, pitchDeterioration: 0.91 }));
+                    }
+
+                    if (overrideInjury === 'mild-injury') {
+                        probAdj -= 12.0;
+                        updatedNarrative.push("TACTICAL ADJUSTMENT: Core strike bowler carries physical strain. Death overs pacing must be balanced to minimize run leak.");
+                        setExtraneousData(prev => ({ ...prev, fatigueT1: 0.88 }));
+                    } else if (overrideInjury === 'heat-fatigue') {
+                        probAdj -= 4.0;
+                        updatedNarrative.push("TACTICAL ADJUSTMENT: Extreme microclimate strain detected on top order. Expect aggressive, short boundary attempts to conserve physical energy.");
+                        setExtraneousData(prev => ({ ...prev, heatStress: 0.95 }));
+                    }
+
+                    if (overrideCustom) {
+                        updatedNarrative.push(`ANALYST CUSTOM DIRECTIVE: "${overrideCustom}"`);
+                    }
+
+                    setNarrativeText(updatedNarrative);
+                    setMiWinProb(prev => Math.min(95, Math.max(5, parseFloat((prev + probAdj).toFixed(1)))));
+                    setShowOverrideNotice(true);
+                    setIsAnalyzing(false);
+                    setActiveTab('narrative');
+                    logMessage("LANGGRAPH: Dynamic node intervention injected successfully. State propagation updated.");
+                }, 800);
+            };
+
+            // Weather Outage Simulation
+            const toggleWeatherStatus = () => {
+                setWeatherApiOnline(!weatherApiOnline);
+                if (weatherApiOnline) {
+                    logMessage("CRITICAL: Weather API connection lost. Activating degraded fallback state mechanism.");
+                    setExtraneousData(prev => ({
+                        ...prev,
+                        rawWeather: false,
+                        heatStress: 0.45 
+                    }));
+                } else {
+                    logMessage("SYSTEM: Connection restored. Live sensor inputs online.");
+                    setExtraneousData(prev => ({
+                        ...prev,
+                        rawWeather: true,
+                        heatStress: 0.68
+                    }));
+                }
+            };
+
+            return (
+                <div class="crt-monitor min-h-screen flex flex-col justify-between">
+                    
+                    {/* ─── SYSTEM HEADER ────────────────────────────────────────────────── */}
+                    <header class="bg-cardBg/95 border-b border-borderClr px-6 py-4 sticky top-0 z-50 backdrop-blur-xl flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="relative bg-gradient-to-br from-brandPurple to-brandPink p-3 rounded-xl shadow-lg shadow-brandPurple/20 flex items-center justify-center">
+                                <i class="fa-solid fa-bolt text-darkBg text-xl font-bold"></i>
+                                <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandTeal opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-brandTeal"></span>
+                                </span>
+                            </div>
+                            <div>
+                                <h1 class="font-display text-lg font-black tracking-widest text-white flex items-center gap-3">
+                                    IPL PIT-WALL PREDICTOR
+                                    <span class="text-xxs bg-brandPurple/10 text-brandPurple px-2.5 py-0.5 rounded border border-brandPurple/20 font-bold uppercase tracking-widest font-mono">
+                                        Agent-Chain v3.4
+                                    </span>
+                                </h1>
+                                <p class="text-xs text-zinc-500 font-mono">Llama-3.3-70b-versatile Narrative Pipeline // Groq LPU Engine</p>
+                            </div>
+                        </div>
+
+                        {/* Telemetry diagnostics metrics */}
+                        <div class="flex flex-wrap items-center gap-3 text-xs">
+                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
+                                <span class="h-2 w-2 rounded-full bg-brandGreen status-live"></span>
+                                <span class="text-zinc-400">ENGINE: <span class="text-brandGreen font-bold">{matchMeta.modelVersion}</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
+                                <i class="fa-solid fa-server text-brandTeal"></i>
+                                <span class="text-zinc-400">GATE: <span class="text-brandTeal font-bold">{matchMeta.validationPassed ? "PASS" : "FAIL"}</span></span>
+                            </div>
+                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
+                                <i class="fa-solid fa-microchip text-brandPink"></i>
+                                <span class="text-zinc-400"><span class="text-brandPink font-bold">{matchMeta.featuresActive}</span> FEATURES ACTIVE</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* ─── LIVE RUNNERS / PIPELINE LOADERS ───────────────────────────────── */}
+                    {isAnalyzing && (
+                        <div class="bg-brandPurple/10 border-y border-brandPurple/30 text-brandPurple px-6 py-2.5 text-xs font-mono flex items-center justify-between animate-pulse">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-solid fa-satellite-dish fa-spin text-sm"></i>
+                                <span>COMPUTING MODEL PARAMETERS — LANGGRAPH FEEDBACK LOOP ACTIVE...</span>
+                            </div>
+                            <span class="text-xxs bg-brandPurple/20 px-2 py-0.5 rounded">GRID RECALIBRATING</span>
+                        </div>
+                    )}
+
+                    {!weatherApiOnline && (
+                        <div class="bg-brandOrange/10 border-y border-brandOrange/30 text-brandOrange px-6 py-2.5 text-xs font-mono flex items-center justify-between">
+                            <div class="flex items-center space-x-2 animate-pulse">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span><strong>FALLBACK SYSTEM ENGAGED:</strong> Weather telemetry offline. Utilizing baseline climate averages for Wankhede.</span>
+                            </div>
+                            <span class="text-xxs bg-brandOrange/20 px-2 py-0.5 rounded font-bold">DEGRADED MODE</span>
+                        </div>
+                    )}
+
+                    {showOverrideNotice && (
+                        <div class="bg-brandPink/15 border-y border-brandPink/30 text-brandPink px-6 py-2.5 text-xs font-mono flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span><strong>OVERRIDE APPLIED:</strong> Live predictions adjusted via analyst manual state injection.</span>
+                            </div>
+                            <button onClick={() => setShowOverrideNotice(false)} class="text-xxs hover:underline">DISMISS</button>
+                        </div>
+                    )}
+
+                    {/* ─── MAIN SYSTEM CONTENT GRID ──────────────────────────────────────── */}
+                    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                        
+                        {/* SIDEBAR TACTICAL TERMINAL & CONTROLS */}
+                        <aside class="w-full lg:w-80 bg-zinc-950/60 border-b lg:border-b-0 lg:border-r border-borderClr p-5 flex flex-col justify-between space-y-6 flex-shrink-0">
+                            <div class="space-y-6">
+                                <div>
+                                    <div class="text-xxs uppercase tracking-widest text-zinc-600 font-bold px-1 mb-2 font-mono">System Console</div>
+                                    <nav class="space-y-1 font-display">
+                                        <button onClick={() => setActiveTab('prematch')}
+                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'prematch' ? 'bg-brandPurple/10 border-l-2 border-brandPurple text-brandPurple font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
+                                            <span class="flex items-center space-x-3">
+                                                <i class="fa-solid fa-calendar-day w-4 text-center text-xs"></i>
+                                                <span>PRE-MATCH INTEL</span>
+                                            </span>
+                                            <span class="text-xxs font-mono text-zinc-600">[01]</span>
+                                        </button>
+                                        <button onClick={() => setActiveTab('pitwall')}
+                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'pitwall' ? 'bg-brandTeal/10 border-l-2 border-brandTeal text-brandTeal font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
+                                            <span class="flex items-center space-x-3">
+                                                <i class="fa-solid fa-gauge-high w-4 text-center text-xs"></i>
+                                                <span>LIVE PIT-WALL</span>
+                                            </span>
+                                            <span class="text-xxs font-mono text-zinc-600">[02]</span>
+                                        </button>
+                                        <button onClick={() => setActiveTab('narrative')}
+                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'narrative' ? 'bg-brandPink/10 border-l-2 border-brandPink text-brandPink font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
+                                            <span class="flex items-center space-x-3">
+                                                <i class="fa-solid fa-message-captions w-4 text-center text-xs"></i>
+                                                <span>TACTICAL NARRATIVE</span>
+                                            </span>
+                                            <span class="text-xxs font-mono text-zinc-600">[03]</span>
+                                        </button>
+                                        <button onClick={() => setActiveTab('diagnostics')}
+                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'diagnostics' ? 'bg-brandOrange/10 border-l-2 border-brandOrange text-brandOrange font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
+                                            <span class="flex items-center space-x-3">
+                                                <i class="fa-solid fa-heart-pulse w-4 text-center text-xs"></i>
+                                                <span>SYSTEM MONITOR</span>
+                                            </span>
+                                            <span class="text-xxs font-mono text-zinc-600">[04]</span>
+                                        </button>
+                                    </nav>
+                                </div>
+
+                                {/* Active Pipeline Visualization */}
+                                <div class="pt-4 border-t border-borderClr">
+                                    <div class="text-xxs uppercase tracking-widest text-zinc-600 font-bold px-1 mb-3.5 font-mono">Agent Processing Pipe</div>
+                                    <div class="space-y-1.5 font-mono text-xxs">
+                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
+                                            <span class="text-zinc-400">Ingestion Pipeline</span>
+                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
+                                            <span class="text-zinc-400">Extraneous Factor</span>
+                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
+                                            <span class="text-zinc-400">Feature Generator</span>
+                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
+                                            <span class="text-zinc-400">Prediction Engine</span>
+                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
+                                        </div>
+                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
+                                            <span class="text-zinc-400">Narrative Generator</span>
+                                            <span class="text-brandTeal font-bold flex items-center gap-1 status-live">● ONLINE</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Simulation telemetry controls */}
+                            <div class="space-y-4">
+                                <div class="bg-zinc-950 p-4 rounded border border-borderClr space-y-3.5">
+                                    <h4 class="text-xxs font-bold text-zinc-400 flex items-center gap-2 font-display uppercase tracking-widest">
+                                        <i class="fa-solid fa-gamepad text-brandTeal"></i> MATCH SIMULATOR
+                                    </h4>
+                                    <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Simulate continuous physical play. Advancing overs recalibrates neural projections and generates telemetry drift.</p>
+                                    
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button onClick={simulateNewOver}
+                                            class="bg-brandTeal text-darkBg hover:bg-brandTeal/90 text-xxs font-bold py-2.5 px-3 rounded flex justify-center items-center gap-1.5 transition font-display uppercase tracking-wider">
+                                            <i class="fa-solid fa-forward-step"></i> OVER {currentOver < 20 ? currentOver + 1 : 20}
+                                        </button>
+                                        <button onClick={resetSimulation}
+                                            class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xxs font-bold py-2.5 px-3 rounded border border-borderClr transition font-display uppercase tracking-wider">
+                                            <i class="fa-solid fa-rotate-left"></i> RESET
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Live Terminal Console Screen */}
+                                <div class="bg-black border border-borderClr p-3 rounded font-mono text-xxs">
+                                    <div class="flex justify-between items-center text-zinc-600 mb-2 border-b border-borderClr pb-1.5 font-bold">
+                                        <span>TELEMETRY_LOGS</span>
+                                        <span class="status-live text-brandTeal">● LIVE</span>
+                                    </div>
+                                    <div class="h-32 overflow-y-auto space-y-1.5 text-zinc-400 scrollbar-thin">
+                                        {terminalLogs.map((log, index) => (
+                                            <div key={index} class="leading-relaxed break-words hover:text-white transition">
+                                                <span class="text-brandPurple select-none">&gt;</span> {log}
+                                            </div>
+                                        ))}
+                                        <div ref={terminalEndRef} />
+                                    </div>
+                                </div>
+                            </div>
+                        </aside>
+
+                        {/* TELEMETRY DASHBOARD MAIN VIEWPORT */}
+                        <main class="flex-1 p-6 overflow-y-auto space-y-6">
+
+                            {/* ─── VIEW TAB: PRE-MATCH INTEL ───────────────────────────────── */}
+                            {activeTab === 'prematch' && (
+                                <div class="space-y-6 animate-fadeIn">
+                                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                                        
+                                        {/* Core Match Frame HUD */}
+                                        <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between min-h-[220px]">
+                                            <div>
+                                                <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">COGNITIVE MATCH HEADER // INTEL-CHAIN</span>
+                                                <div class="flex justify-between items-start mt-2">
+                                                    <div>
+                                                        <h2 class="font-display text-3xl font-black tracking-widest text-white">{matchMeta.team1} <span class="text-brandPink text-xl italic font-light">vs</span> {matchMeta.team2}</h2>
+                                                        <p class="text-xs text-zinc-500 font-mono mt-1">{matchMeta.venue} • {matchMeta.night ? 'NIGHT TELEMETRY' : 'DAY TELEMETRY'} • {matchMeta.date}</p>
+                                                    </div>
+                                                    <div class="text-right font-mono">
+                                                        <div class="text-xxs text-zinc-600">MATCH_HASH</div>
+                                                        <div class="text-xxs text-zinc-400">IPL-2025-F01A9</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div class="bg-zinc-950/80 border border-borderClr p-3 rounded flex items-center space-x-3.5">
+                                                    <i class="fa-solid fa-compass text-brandTeal text-base"></i>
+                                                    <div>
+                                                        <div class="text-xxs text-zinc-500 uppercase tracking-widest font-mono">Toss Directive</div>
+                                                        <div class="text-xs font-bold text-white mt-0.5">
+                                                            {miWinProb > 51 ? "BOWL FIRST — Optimal Chasing Vector" : "BAT FIRST — High First-Innings Defense Edge"}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="bg-zinc-950/80 border border-borderClr p-3 rounded flex items-center space-x-3.5">
+                                                    <i class="fa-solid fa-droplet text-brandPurple text-base"></i>
+                                                    <div>
+                                                        <div class="text-xxs text-zinc-500 uppercase tracking-widest font-mono">Dew Hazard Calculation</div>
+                                                        <div class="text-xs font-bold text-white mt-0.5">
+                                                            {extraneousData.dewRisk ? `High Hazard — Estimated Onset: Over ${extraneousData.dewOnsetOver}` : "Low Hazard Expected"}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Win Probability Calibration HUD */}
+                                        <div class="tech-card p-6 flex flex-col justify-between">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <span class="text-xxs uppercase tracking-widest text-zinc-500 font-mono">XGBOOST baseline</span>
+                                                    <h3 class="text-sm font-bold text-white font-display mt-1">WIN PROBABILITY</h3>
+                                                </div>
+                                                <span class="bg-brandGreen/10 text-brandGreen text-xxs px-2.5 py-0.5 rounded border border-brandGreen/20 font-mono font-bold tracking-wider">
+                                                    HIGH CONF
+                                                </span>
+                                            </div>
+
+                                            <div class="my-4">
+                                                <div class="flex justify-between text-xxs font-bold mb-2 font-mono">
+                                                    <span class="text-brandPurple">{matchMeta.team1}</span>
+                                                    <span class="text-brandPink">{matchMeta.team2}</span>
+                                                </div>
+                                                
+                                                {/* Cyberpunk probability progress bar */}
+                                                <div class="w-full bg-zinc-900 h-3.5 rounded overflow-hidden flex border border-borderClr">
+                                                    <div class="bg-gradient-to-r from-brandPurple to-brandPurple/80 h-full transition-all duration-500" style={{ width: `${miWinProb}%` }}></div>
+                                                    <div class="bg-gradient-to-r from-brandPink/80 to-brandPink h-full transition-all duration-500" style={{ width: `${100 - miWinProb}%` }}></div>
+                                                </div>
+
+                                                <div class="flex justify-between text-xxs font-mono text-zinc-400 mt-2">
+                                                    <span>{miWinProb.toFixed(1)}% Win Rate</span>
+                                                    <span>{(100 - miWinProb).toFixed(1)}% Win Rate</span>
+                                                </div>
+                                            </div>
+                                            <p class="text-xxs text-zinc-600 font-mono leading-relaxed">Calibrated against 44 variables via historical regression weightings.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* EXTRANEOUS AGENT FEED HUD CARDS */}
+                                    <div>
+                                        <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-3.5 flex items-center gap-2 font-mono">
+                                            <i class="fa-solid fa-microchip text-brandPurple"></i> EXTRANEOUS VARIABLES MODULES
+                                        </h3>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            
+                                            {/* Fatigue Score */}
+                                            <div class="tech-card p-4">
+                                                <div class="flex justify-between items-center mb-2 font-mono">
+                                                    <span class="text-xxs text-zinc-500">Fatigue Factor (T1)</span>
+                                                    <span class={`text-xxs font-bold ${extraneousData.fatigueT1 > 0.6 ? 'text-brandOrange' : 'text-brandGreen'}`}>
+                                                        {extraneousData.fatigueT1 > 0.6 ? 'WARNING' : 'OPTIMAL'}
+                                                    </span>
+                                                </div>
+                                                <div class="text-2xl font-display font-black text-white">{extraneousData.fatigueT1.toFixed(2)}</div>
+                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
+                                                    <div class="bg-brandPurple h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.fatigueT1 * 100}%` }}></div>
+                                                </div>
+                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Travel distance: {extraneousData.travelKm}km</p>
+                                            </div>
+
+                                            {/* Pitch Deterioration */}
+                                            <div class="tech-card p-4">
+                                                <div class="flex justify-between items-center mb-2 font-mono">
+                                                    <span class="text-xxs text-zinc-500">Pitch Deterioration</span>
+                                                    <span class="text-xxs font-bold text-brandOrange">HIGH SPIN</span>
+                                                </div>
+                                                <div class="text-2xl font-display font-black text-white">{extraneousData.pitchDeterioration.toFixed(2)}</div>
+                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
+                                                    <div class="bg-brandOrange h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.pitchDeterioration * 100}%` }}></div>
+                                                </div>
+                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Historical venue crack tracking</p>
+                                            </div>
+
+                                            {/* Rest Days */}
+                                            <div class="tech-card p-4">
+                                                <div class="flex justify-between items-center mb-2 font-mono">
+                                                    <span class="text-xxs text-zinc-500">Rest Offset (T1)</span>
+                                                    <span class={`text-xxs font-bold ${extraneousData.restDays < 4 ? 'text-brandOrange' : 'text-brandGreen'}`}>
+                                                        {extraneousData.restDays < 4 ? 'COMPRESSED' : 'STABLE'}
+                                                    </span>
+                                                </div>
+                                                <div class="text-2xl font-display font-black text-white">{extraneousData.restDays} <span class="text-xs text-zinc-500">days</span></div>
+                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
+                                                    <div class="bg-brandTeal h-full rounded-full transition-all duration-500" style={{ width: `${(extraneousData.restDays / 7) * 100}%` }}></div>
+                                                </div>
+                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Impact on physical reload curve</p>
+                                            </div>
+
+                                            {/* Heat Stress */}
+                                            <div class="tech-card p-4">
+                                                <div class="flex justify-between items-center mb-2 font-mono">
+                                                    <span class="text-xxs text-zinc-500">Thermal Stress Score</span>
+                                                    <span class="text-xxs font-bold text-brandPink">ELEVATED</span>
+                                                </div>
+                                                <div class="text-2xl font-display font-black text-white">{extraneousData.heatStress.toFixed(2)}</div>
+                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
+                                                    <div class="bg-brandPink h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.heatStress * 100}%` }}></div>
+                                                </div>
+                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Measured relative humidity factor</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* FEATURE DRIVERS LISTING */}
+                                    <div class="tech-card p-6">
+                                        <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-5 font-mono flex items-center gap-2">
+                                            <i class="fa-solid fa-chart-bar text-brandTeal"></i> TOP MODEL FEATURE VALUE INFLUENCES
+                                        </h3>
+                                        <div class="space-y-4">
+                                            {featureDrivers.map((driver, index) => (
+                                                <div key={index} class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <span class="text-xs text-zinc-300 font-mono w-60 truncate">{driver.name}</span>
+                                                    <div class="flex-1 flex items-center space-x-3">
+                                                        <div class="flex-1 bg-zinc-900 h-2 rounded overflow-hidden border border-borderClr">
+                                                            <div class={`h-full rounded transition-all duration-500 ${driver.pct > 70 ? 'bg-brandPurple' : driver.pct > 40 ? 'bg-brandTeal' : 'bg-brandOrange'}`}
+                                                                style={{ width: `${driver.pct}%` }}></div>
+                                                        </div>
+                                                        <span class="text-xs text-zinc-400 font-mono w-14 text-right">{driver.score.toFixed(4)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ─── VIEW TAB: LIVE PIT-WALL PANEL ───────────────────────────── */}
+                            {activeTab === 'pitwall' && (
+                                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fadeIn">
+                                    
+                                    {/* Real-time Telemetry Trend Graph */}
+                                    <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between">
+                                        <div class="flex justify-between items-center mb-4">
+                                            <div>
+                                                <span class="text-xxs uppercase tracking-widest text-brandTeal font-bold font-mono">LIVE PREDICTION FEED</span>
+                                                <h3 class="text-sm font-bold text-white font-display mt-0.5">OVER-BY-OVER DEVIATION TREND</h3>
+                                            </div>
+                                            <span class="text-xxs bg-zinc-950 text-zinc-400 border border-borderClr px-3 py-1.5 rounded font-mono">
+                                                OVER {currentOver} OF 20
+                                            </span>
+                                        </div>
+                                        <div class="h-80 relative">
+                                            <canvas id="winProbChartReact"></canvas>
+                                        </div>
+                                        <div class="flex justify-between items-center text-xxs font-mono text-zinc-500 mt-4 border-t border-borderClr/55 pt-3">
+                                            <span>X-Axis: Play Progression (Overs)</span>
+                                            <span>Y-Axis: Team 1 Win Probability Baseline %</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Interactive Signals Feed Panel */}
+                                    <div class="tech-card p-6 flex flex-col justify-between">
+                                        <div>
+                                            <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2 font-mono">
+                                                <i class="fa-solid fa-tower-radar text-brandOrange"></i> ACTIVE PIT-WALL SIGNAL FEED
+                                            </h3>
+                                            <div class="space-y-3.5 max-h-[340px] overflow-y-auto pr-1">
+                                                {tacticalAlerts.map(alert => (
+                                                    <div key={alert.id} class={`p-3.5 rounded border border-borderClr/70 ${alert.type === 'success' ? 'bg-brandTeal/5 border-l-2 border-l-brandTeal' : alert.type === 'warning' ? 'bg-brandOrange/5 border-l-2 border-l-brandOrange' : 'bg-brandPink/5 border-l-2 border-l-brandPink'}`}>
+                                                        <div class="flex justify-between items-center">
+                                                            <span class={`text-xxs font-bold uppercase font-mono ${alert.type === 'success' ? 'text-brandTeal' : alert.type === 'warning' ? 'text-brandOrange' : 'text-brandPink'}`}>{alert.title}</span>
+                                                            <span class="text-xxs text-zinc-500 font-mono">{alert.time}</span>
+                                                        </div>
+                                                        <p class="text-xs text-zinc-400 mt-1.5 leading-relaxed font-mono">{alert.text}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="pt-4 border-t border-borderClr">
+                                            <div class="flex justify-between items-center text-xs font-mono">
+                                                <span class="text-zinc-500">Live Predictor Confidence</span>
+                                                <span class="text-brandGreen bg-brandGreen/10 border border-brandGreen/20 px-2 py-0.5 rounded font-bold">
+                                                    {(0.88 + Math.random() * 0.08).toFixed(3)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ─── VIEW TAB: TACTICAL NARRATIVE ────────────────────────────── */}
+                            {activeTab === 'narrative' && (
+                                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fadeIn">
+                                    
+                                    {/* AI generated Narrative output column */}
+                                    <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between space-y-6">
+                                        <div>
+                                            <div class="flex justify-between items-center border-b border-borderClr pb-4 mb-4">
+                                                <div>
+                                                    <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">LLAMA-3.3-70B-VERSATILE ON GROQ LPU</span>
+                                                    <h3 class="text-sm font-bold text-white font-display mt-0.5">TACTICAL AGENT BRIEF</h3>
+                                                </div>
+                                                <span class="text-xxs font-mono text-zinc-500 italic">STATE SYNCHRONIZED</span>
+                                            </div>
+                                            <div class="text-xs font-mono text-zinc-300 space-y-4 leading-relaxed">
+                                                {narrativeText.map((paragraph, index) => (
+                                                    <p key={index} class="p-3 bg-zinc-950/40 rounded border border-borderClr/40">
+                                                        {paragraph}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Engine workflow block illustration */}
+                                        <div class="bg-zinc-950 p-4 rounded border border-borderClr">
+                                            <h4 class="text-xxs font-mono font-bold text-zinc-500 mb-3 uppercase tracking-widest">
+                                                LANGGRAPH EXECUTION LOG TRACE
+                                            </h4>
+                                            <div class="grid grid-cols-5 gap-2 text-xxs font-mono text-center">
+                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
+                                                    INGEST <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
+                                                </div>
+                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
+                                                    EXTRAN <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
+                                                </div>
+                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
+                                                    FEATURE <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
+                                                </div>
+                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
+                                                    MODEL <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
+                                                </div>
+                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandTeal font-bold animate-pulse">
+                                                    NARRATE <div class="mt-0.5 text-zinc-400 font-normal">ACTIVE</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Analyst Interactive State Injection Card */}
+                                    <div class="tech-card p-6 bg-zinc-950/40">
+                                        <form onSubmit={applyOverrideNode} class="space-y-6">
+                                            <div>
+                                                <div class="flex items-center space-x-2.5 mb-2">
+                                                    <span class="h-2 w-2 rounded-full bg-brandPink status-live"></span>
+                                                    <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-400 font-mono">HUMAN INTERVENTION NODE</h3>
+                                                </div>
+                                                <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Inject raw situational details directly into active state weight calculations to adapt real-time models.</p>
+                                            </div>
+
+                                            <div class="space-y-4 font-mono text-xs">
+                                                <div>
+                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Surface Humidity Adjust</label>
+                                                    <select value={overridePitch} onChange={(e) => setOverridePitch(e.target.value)}
+                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple">
+                                                        <option value="none">Baseline / No Change</option>
+                                                        <option value="damp">Heavy Grass / Damp Dampness</option>
+                                                        <option value="cracked">Deep Crack Deterioration</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Player Physical State</label>
+                                                    <select value={overrideInjury} onChange={(e) => setOverrideInjury(e.target.value)}
+                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple">
+                                                        <option value="none">Normal Load Status</option>
+                                                        <option value="mild-injury">Opening Bowler Carrying Minor Niggle</option>
+                                                        <option value="heat-fatigue">Extreme Top-Order Heat Fatigue</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Custom Context Prompt</label>
+                                                    <textarea value={overrideCustom} onChange={(e) => setOverrideCustom(e.target.value)}
+                                                        placeholder="e.g. Tactical substitution expected for spinner at Over 14."
+                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2.5 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple h-20 placeholder:text-zinc-700 resize-none"></textarea>
+                                                </div>
+                                            </div>
+
+                                            <button type="submit"
+                                                class="w-full bg-brandPink text-darkBg hover:bg-brandPink/90 text-xxs font-bold py-3 px-4 rounded transition flex justify-center items-center gap-1.5 font-display uppercase tracking-wider">
+                                                <i class="fa-solid fa-code-merge"></i> INJECT OVERRIDE STATE
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ─── VIEW TAB: SYSTEM MONITOR (DIAGNOSTICS) ─────────────────── */}
+                            {activeTab === 'diagnostics' && (
+                                <div class="space-y-6 animate-fadeIn">
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        
+                                        {/* Validation Gate */}
+                                        <div class="tech-card p-5 space-y-4">
+                                            <div class="flex justify-between items-start">
+                                                <span class="text-xxs uppercase tracking-widest text-brandTeal font-bold font-mono">DATA VALIDATION SCHEMA</span>
+                                                <span class="bg-brandGreen/15 text-brandGreen text-xxs font-bold px-2 py-0.5 rounded border border-brandGreen/20 font-mono">PASS</span>
+                                            </div>
+                                            <div class="space-y-2.5 text-xxs font-mono">
+                                                <div class="flex justify-between border-b border-borderClr/60 pb-2">
+                                                    <span class="text-zinc-500">NULL CHECK COMPLIANCE</span>
+                                                    <span class="text-brandGreen">0 NULL_RECORDS</span>
+                                                </div>
+                                                <div class="flex justify-between border-b border-borderClr/60 pb-2">
+                                                    <span class="text-zinc-500">TIMEZONE NORMALIZATION</span>
+                                                    <span class="text-zinc-400">Asia/Kolkata</span>
+                                                </div>
+                                                <div class="flex justify-between">
+                                                    <span class="text-zinc-500">SCHEMA CONFORMANCE</span>
+                                                    <span class="text-brandGreen">MATCH_STANDARD</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Feature Drift Monitor */}
+                                        <div class="tech-card p-5 space-y-4">
+                                            <div class="flex justify-between items-start">
+                                                <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">FEATURE DRIFT DETECTOR</span>
+                                                <span class={`text-xxs font-bold px-2 py-0.5 rounded border font-mono ${driftScore > 0.2 ? 'bg-brandOrange/15 text-brandOrange border-brandOrange/20' : 'bg-brandGreen/15 text-brandGreen border-brandGreen/20'}`}>
+                                                    {driftScore > 0.2 ? 'ALERT' : 'STABLE'}
+                                                </span>
+                                            </div>
+                                            <div class="flex items-end space-x-3.5 font-mono">
+                                                <div class="text-3xl font-display font-black text-white">{driftScore.toFixed(2)}</div>
+                                                <div class="pb-1">
+                                                    <div class="text-xxs text-zinc-500 uppercase">PSI Score Index</div>
+                                                    <div class="text-xxs text-zinc-600">Retrain trigger: &gt; 0.25</div>
+                                                </div>
+                                            </div>
+                                            <div class="w-full bg-zinc-900 h-2 rounded overflow-hidden">
+                                                <div class="bg-brandPurple h-full rounded transition-all duration-500" style={{ width: `${(driftScore / 0.3) * 100}%` }}></div>
+                                            </div>
+                                        </div>
+
+                                        {/* Live weather outage simulator toggle */}
+                                        <div class="tech-card p-5 space-y-4">
+                                            <div class="flex justify-between items-start">
+                                                <span class="text-xxs uppercase tracking-widest text-brandOrange font-bold font-mono">API OUTAGE EMULATOR</span>
+                                                <span class={`text-xxs font-bold px-2 py-0.5 rounded border font-mono ${weatherApiOnline ? 'bg-brandGreen/15 text-brandGreen border-brandGreen/20' : 'bg-brandOrange/15 text-brandOrange border-brandOrange/20'}`}>
+                                                    {weatherApiOnline ? 'INACTIVE' : 'DEGRADED'}
+                                                </span>
+                                            </div>
+                                            <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Emulate physical weather API loss to inspect local microclimate fallback state handler performance.</p>
+                                            <button onClick={toggleWeatherStatus}
+                                                class={`w-full py-2 px-3 rounded font-mono text-xxs font-bold border transition ${weatherApiOnline ? 'bg-zinc-900 border-borderClr hover:bg-zinc-850 text-zinc-400' : 'bg-brandOrange/10 border-brandOrange/30 text-brandOrange hover:bg-brandOrange/15'}`}>
+                                                {weatherApiOnline ? "MOCK TELEMETRY CONNECTION LOSS" : "RE-CONNECT LIVE WEATHER PLUG"}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* POST-MATCH FEEDBACK ENGINE LOGGING */}
+                                    <div class="tech-card p-6">
+                                        <div class="flex justify-between items-center border-b border-borderClr pb-4 mb-4">
+                                            <div>
+                                                <span class="text-xxs uppercase tracking-widest text-brandGreen font-bold font-mono">OUTPUT PERSISTENCE DATABASE</span>
+                                                <h3 class="text-sm font-bold text-white font-display mt-0.5">FEEDBACK CONTROL LOOP</h3>
+                                            </div>
+                                            <span class="text-xxs font-mono text-zinc-500">RETRAINING QUEUE ENGINE</span>
+                                        </div>
+                                        <div class="overflow-x-auto">
+                                            <table class="w-full text-left text-xxs text-zinc-400 font-mono">
+                                                <thead>
+                                                    <tr class="text-zinc-600 border-b border-borderClr">
+                                                        <th class="py-2 font-bold uppercase">Match Code ID</th>
+                                                        <th class="py-2 font-bold uppercase">Telemetry Hash</th>
+                                                        <th class="py-2 font-bold uppercase">Predicted Edge</th>
+                                                        <th class="py-2 font-bold uppercase">Real Outcome</th>
+                                                        <th class="py-2 font-bold uppercase">Brier Variance</th>
+                                                        <th class="py-2 font-bold uppercase">Retraining Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-borderClr/60">
+                                                    <tr class="hover:bg-zinc-900/30">
+                                                        <td class="py-3 text-white font-bold">#IPL-2025-001</td>
+                                                        <td class="py-3 text-zinc-600">f9a12c0a9...</td>
+                                                        <td class="py-3 text-brandTeal">MI 54.0%</td>
+                                                        <td class="py-3 text-brandGreen">MI won by 6 wickets</td>
+                                                        <td class="py-3 text-brandGreen">0.02</td>
+                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
+                                                    </tr>
+                                                    <tr class="hover:bg-zinc-900/30">
+                                                        <td class="py-3 text-white font-bold">#IPL-2025-002</td>
+                                                        <td class="py-3 text-zinc-600">c87dfa19b...</td>
+                                                        <td class="py-3 text-brandTeal">RCB 48.0%</td>
+                                                        <td class="py-3 text-brandOrange">LSG won by 3 wickets</td>
+                                                        <td class="py-3 text-brandOrange">0.09</td>
+                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
+                                                    </tr>
+                                                    <tr class="hover:bg-zinc-900/30">
+                                                        <td class="py-3 text-white font-bold">#IPL-2025-003</td>
+                                                        <td class="py-3 text-zinc-600">a23bc5e56...</td>
+                                                        <td class="py-3 text-brandTeal">CSK 61.0%</td>
+                                                        <td class="py-3 text-brandGreen">CSK won by 9 runs</td>
+                                                        <td class="py-3 text-brandGreen">0.04</td>
+                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                        </main>
+                    </div>
+
+                    {/* ─── SYSTEM FOOTER STATUS ─────────────────────────────────────────── */}
+                    <footer class="bg-cardBg border-t border-borderClr px-6 py-3 flex flex-col sm:flex-row justify-between items-center text-xxs font-mono text-zinc-500 gap-2">
+                        <div class="flex items-center space-x-2">
+                            <span class="status-live h-1.5 w-1.5 rounded-full bg-brandTeal"></span>
+                            <span>DECISION-CHAIN ACTIVE // PORT: 8000</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span>GRID_X: 18.2917 | GRID_Y: 73.8206</span>
+                            <span>LATENCY: 12ms</span>
+                            <span>© 2026 CRICKET_COG_SYSTEMS</span>
+                        </div>
+                    </footer>
+
+                </div>
+            );
+        }
+
+        // Mount the React Application
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+<!-- END OF FILE Paste June 11, 2026 - 11:15AM -->

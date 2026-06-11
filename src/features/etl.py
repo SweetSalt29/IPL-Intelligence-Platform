@@ -359,16 +359,36 @@ def assemble(
     """Join all feature blocks onto the matches spine."""
     df = matches.copy()
 
-    # ── Toss (derive from match data) ──────────────────────────────
-    # Cricsheet CSV2 does not embed toss in ball-by-ball rows.
-    # We proxy: team1 = batting first (innings 1 batting_team from balls).
-    # Toss winner is not reliably available in Cricsheet CSV2 without the
-    # _info files — we set a neutral default and override when info data added.
-    df["toss_winner_is_team1"] = 0  # placeholder — update with _info parsing
-    df["toss_decision_bat"]    = 1  # team1 batting first = bat decision (proxy)
+    # ── Toss — read from matches table (populated by parse_info_files) ──
+    # toss_winner_is_team1 and toss_decision_bat written by cricsheet_ingest.
+    # If present, use them. Fill remaining nulls with neutral defaults.
+    if "toss_winner_is_team1" in df.columns:
+        df["toss_winner_is_team1"] = pd.to_numeric(
+            df["toss_winner_is_team1"], errors="coerce"
+        ).fillna(0).astype("int8")
+    else:
+        df["toss_winner_is_team1"] = 0
+
+    if "toss_decision_bat" in df.columns:
+        df["toss_decision_bat"] = pd.to_numeric(
+            df["toss_decision_bat"], errors="coerce"
+        ).fillna(1).astype("int8")
+    else:
+        df["toss_decision_bat"] = 1
     df["is_day_match"]         = (df["start_date"].dt.hour < 15).astype("int8") \
         if "start_date" in df.columns else 0
-    df["season_stage"]         = 0  # 0 = league phase default
+    # season_stage: 0=league, 1=qualifier/eliminator, 2=final
+    # IPL league phase is 70 matches (2022+), 60 matches earlier.
+    # Matches beyond that threshold are knockouts.
+    if "season" in df.columns:
+        season_counts = df.groupby("season")["match_id"].transform("count")
+        match_rank    = df.groupby("season").cumcount() + 1
+        league_cutoff = season_counts - 4   # last 4 matches = knockouts
+        df["season_stage"] = (
+            (match_rank > league_cutoff).astype("int8")
+        )
+    else:
+        df["season_stage"] = 0
 
     # ── Venue encode ───────────────────────────────────────────────
     le = LabelEncoder()
@@ -391,6 +411,10 @@ def assemble(
             "season_match_num":"team2_season_match_num","is_home":"team2_home_flag",
         })[["match_id","team2","team2_rest_days","team2_back_to_back",
             "team2_travel_km","team2_travel_burden","team2_season_match_num","team2_home_flag"]]
+        # match_id type alignment before merge
+        sched_t1["match_id"] = sched_t1["match_id"].astype(str)
+        sched_t2["match_id"] = sched_t2["match_id"].astype(str)
+        df["match_id"] = df["match_id"].astype(str)
         df = df.merge(sched_t1, on=["match_id","team1"], how="left")
         df = df.merge(sched_t2, on=["match_id","team2"], how="left")
 
@@ -400,13 +424,16 @@ def assemble(
             df[col] = df[col].replace(99, 7).clip(upper=14)
 
     # ── Weather ────────────────────────────────────────────────────
+    # match_id type alignment: weather parquet stores string (filename stem),
+    # matches table may have integer IDs. Cast both to str before merge.
     if not weather.empty:
-        df = df.merge(
-            weather[["match_id","dew_risk_flag","temp_night_avg","humidity_night_avg",
-                     "dewpoint_night_avg","windspeed_night_avg","pressure_night_avg",
-                     "precipitation_mm"]],
-            on="match_id", how="left"
-        )
+        weather_cols = ["match_id","dew_risk_flag","temp_night_avg","humidity_night_avg",
+                        "dewpoint_night_avg","windspeed_night_avg","pressure_night_avg",
+                        "precipitation_mm"]
+        w = weather[[c for c in weather_cols if c in weather.columns]].copy()
+        w["match_id"] = w["match_id"].astype(str)
+        df["match_id"] = df["match_id"].astype(str)
+        df = df.merge(w, on="match_id", how="left")
 
     # ── Team form ──────────────────────────────────────────────────
     form_t1 = team_form.rename(columns={
