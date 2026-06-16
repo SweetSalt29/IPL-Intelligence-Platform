@@ -24,7 +24,7 @@ from src.features.schema_loader import get_feature_columns, get_fillna_map
 
 ROOT        = Path(__file__).resolve().parents[2]
 MODELS_DIR  = ROOT / "src" / "models" / "artifacts"
-MODEL_API   = os.getenv("MODEL_API_URL", "http://localhost:8000")
+MODEL_API   = os.getenv("MODEL_API_URL", "http://localhost:8001")
 
 
 # ── ML Model Tool ──────────────────────────────────────────────────────────────

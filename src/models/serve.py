@@ -143,6 +143,16 @@ class DriftCheckResponse(BaseModel):
     extra_features:   list[str]
     warnings:         list[str]
 
+class SimulateMatchRequest(BaseModel):
+    match_id: Optional[str] = None
+    pov_team: Optional[str] = None
+    team1: str
+    team2: str
+    venue: str
+    match_date: str
+    season: str
+    is_night_match: bool = True
+    human_override: dict = {}
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -284,10 +294,87 @@ def drift_check(req: DriftCheckRequest):
     )
 
 
+@app.post("/simulate-match")
+def simulate_match(req: SimulateMatchRequest):
+    """
+    Run the full 6-agent LangGraph pipeline for a match.
+    Called by the frontend Dashboard.
+    """
+    try:
+        from src.agents.graph import run_prediction
+        result = run_prediction(
+            team1=req.team1,
+            team2=req.team2,
+            venue=req.venue,
+            match_date=req.match_date,
+            season=req.season,
+            is_night_match=req.is_night_match,
+            human_override=req.human_override,
+            match_id=req.match_id,
+            pov_team=req.pov_team,
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Agent pipeline failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/schedule/2026")
+def get_schedule_2026():
+    """Returns the schedule for the 2026 season."""
+    path = ROOT / "data" / "raw" / "schedule" / "team_schedule.parquet"
+    if not path.exists():
+        return {"matches": []}
+    import pandas as pd
+    df = pd.read_parquet(path)
+    # Ensure season is string and filter
+    df['season'] = df['season'].astype(str)
+    df_2026 = df[df['season'] == '2026'].drop_duplicates('match_id').sort_values('start_date')
+    
+    matches = []
+    for _, row in df_2026.iterrows():
+        matches.append({
+            "match_id": str(row["match_id"]),
+            "team1": row["team"],
+            "team2": row["opponent"],
+            "venue": row["venue"],
+            "date": str(row["start_date"].date()) if hasattr(row["start_date"], "date") else str(row["start_date"])
+        })
+    return {"matches": matches}
+
+@app.get("/match-result/{match_id}")
+def get_match_result(match_id: str):
+    """Returns the actual historical result of a match from DuckDB."""
+    db_path = ROOT / "data" / "processed" / "ipl.duckdb"
+    if not db_path.exists():
+        raise HTTPException(status_code=404, detail="DuckDB not found")
+    
+    import duckdb
+    with duckdb.connect(str(db_path)) as con:
+        res = con.execute("SELECT team1, team2, team1_score, team2_score, chasing_team, chasing_team_won FROM matches WHERE match_id = ?", [match_id]).fetchone()
+        
+        if not res:
+            raise HTTPException(status_code=404, detail="Match not found in database")
+            
+        team1, team2, team1_score, team2_score, chasing_team, chasing_team_won = res
+        
+        batting_team = team1 if team2 == chasing_team else team2
+        winner = chasing_team if chasing_team_won else batting_team
+        
+        return {
+            "match_id": match_id,
+            "batting_team": batting_team,
+            "chasing_team": chasing_team,
+            "team1_score": team1_score,
+            "team2_score": team2_score,
+            "winner": winner,
+            "chasing_team_won": bool(chasing_team_won)
+        }
+
+
 # ── Dev server entry ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import sys, os, uvicorn
     sys.path.insert(0, str(ROOT))
     os.chdir(ROOT)
-    uvicorn.run("src.models.serve:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("src.models.serve:app", host="0.0.0.0", port=8001, reload=False)

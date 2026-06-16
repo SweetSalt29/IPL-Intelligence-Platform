@@ -4,7 +4,7 @@ run_phase3.py
 Phase 3 master runner — trains the model and optionally starts the server.
 
     ipl_venv/bin/python run_phase3.py                    # train only
-    ipl_venv/bin/python run_phase3.py --serve            # train + API on port 8000
+    ipl_venv/bin/python run_phase3.py --serve            # train + API on port 8001
     ipl_venv/bin/python run_phase3.py --serve --port=8080 # custom port
 """
 
@@ -24,7 +24,7 @@ def get_port() -> int:
     for arg in sys.argv:
         if arg.startswith("--port="):
             return int(arg.split("=")[1])
-    return 8000
+    return 8001
 
 
 def main():

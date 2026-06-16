@@ -124,6 +124,7 @@ def run_prediction(
     is_night_match: bool = True,
     human_override: dict = None,
     match_id:      str  = None,
+    pov_team:      str  = None,
 ) -> MatchState:
     """
     Entry point for running a pre-match prediction.
@@ -138,6 +139,7 @@ def run_prediction(
         is_night_match: True for D/N and night matches
         human_override: Optional dict of coach-injected context
         match_id:       Optional match identifier string
+        pov_team:       Optional team perspective for narrative agent
     """
     app = build_graph()
 
@@ -145,6 +147,7 @@ def run_prediction(
         "match_id":       match_id or f"{team1}_vs_{team2}_{match_date}",
         "team1":          team1,
         "team2":          team2,
+        "pov_team":       pov_team,
         "venue":          venue,
         "match_date":     match_date,
         "season":         season,

@@ -1,1075 +1,2130 @@
-<!-- START OF FILE Paste June 11, 2026 - 11:15AM -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPL Intelligence — Pit-Wall System v3.4</title>
-    
-    <!-- TailWind, Chart.js, FontAwesome & Fonts -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- React & Babel CDNs -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPL Intelligence Platform — Multi-Agent Win Prediction System</title>
+  <meta name="description" content="6-agent LangGraph system trained on 17 seasons of IPL ball-by-ball data for pre-match win probability prediction." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── RESET & DESIGN TOKENS ──────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        display: ['Orbitron', 'sans-serif'],
-                        body: ['Inter', 'sans-serif'],
-                        mono: ['Fira Code', 'monospace'],
-                    },
-                    colors: {
-                        darkBg:      '#050507',
-                        cardBg:      '#0a0a0f',
-                        borderClr:   '#161622',
-                        brandPurple: '#c084fc',
-                        brandTeal:   '#2dd4bf',
-                        brandOrange: '#f97316',
-                        brandGreen:  '#4ade80',
-                        brandPink:   '#f472b6',
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <style>
-        body { 
-            background-color: #050507; 
-            overflow-x: hidden;
-        }
+    :root {
+      --bg:           #000000;
+      --bg-card:      rgba(23, 23, 23, 0.90);
+      --bg-card-alt:  rgba(30, 30, 30, 0.80);
+      --bg-hover:     rgba(40, 40, 40, 0.95);
+      --border:       rgba(255,255,255,0.08);
+      --border-focus: rgba(255,255,255,0.20);
+      --text:         #ffffff;
+      --text-muted:   rgba(255,255,255,0.55);
+      --text-dim:     rgba(255,255,255,0.35);
+      --blue:         #3B82F6;
+      --blue-dim:     rgba(59,130,246,0.15);
+      --amber:        #F59E0B;
+      --amber-dim:    rgba(245,158,11,0.15);
+      --emerald:      #10B981;
+      --emerald-dim:  rgba(16,185,129,0.15);
+      --rose:         #F43F5E;
+      --rose-dim:     rgba(244,63,94,0.15);
+      --purple:       #A855F7;
+      --purple-dim:   rgba(168,85,247,0.15);
+      --cyan:         #06B6D4;
+      --cyan-dim:     rgba(6,182,212,0.15);
+      --radius:       16px;
+      --radius-sm:    10px;
+      --radius-pill:  9999px;
+      --blur:         blur(20px);
+      --font:         'Readex Pro', system-ui, -apple-system, sans-serif;
+      --mono:         'JetBrains Mono', 'Fira Code', monospace;
+      --transition:   0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-        /* Sci-Fi Scanner Overlay Texture */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(255, 255, 255, 0.01) 2px,
-                rgba(255, 255, 255, 0.01) 4px
-            );
-            pointer-events: none;
-            z-index: 9999;
-        }
+    html {
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.15) transparent;
+      scroll-padding-top: 180px;
+    }
 
-        /* Subtle tactical pulse */
-        @keyframes status-pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50%       { opacity: 0.3; transform: scale(0.92); }
-        }
-        .status-live { animation: status-pulse 1.8s ease-in-out infinite; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
 
-        /* Tech bracket corner frames */
-        .tech-card {
-            position: relative;
-            background: rgba(10, 10, 15, 0.85);
-            border: 1px solid rgba(22, 22, 34, 0.9);
-            box-shadow: inset 0 0 15px rgba(168, 85, 247, 0.02);
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .tech-card::before, .tech-card::after {
-            content: '';
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            border-color: rgba(168, 85, 247, 0.4);
-            border-style: solid;
-            pointer-events: none;
-        }
-        .tech-card::before {
-            top: -1px; left: -1px;
-            border-width: 1px 0 0 1px;
-        }
-        .tech-card::after {
-            bottom: -1px; right: -1px;
-            border-width: 0 1px 1px 0;
-        }
-        .tech-card:hover {
-            border-color: rgba(168, 85, 247, 0.3);
-            box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.05);
-            transform: translateY(-1px);
-        }
+    /* ── SCROLLBAR ─────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 
-        /* Glowing accents */
-        .glow-purple { box-shadow: 0 0 30px rgba(168, 85, 247, 0.15); }
-        .glow-teal   { box-shadow: 0 0 30px rgba(45, 212, 191, 0.15); }
-        .glow-orange { box-shadow: 0 0 30px rgba(249, 115, 22, 0.15); }
+    /* ── TYPOGRAPHY ────────────────────────────────────────────── */
+    .hero-title { letter-spacing: -0.04em; line-height: 0.95; }
+    .section-title {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    .section-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 540px;
+      line-height: 1.5;
+    }
+    .label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .mono { font-family: var(--mono); font-size: 13px; }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: rgba(5, 5, 7, 0.5); }
-        ::-webkit-scrollbar-thumb { background: #1f1f2e; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3b3b54; }
+    /* ── LAYOUT ────────────────────────────────────────────────── */
+    .tab-section {
+      min-height: 100vh;
+      padding: 180px clamp(24px, 5vw, 80px) 80px;
+      position: relative;
+      border-top: 1px solid var(--border);
+    }
+    .section-header { margin-bottom: 56px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .grid-6 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 
-        /* Screen Flicker Effect */
-        @keyframes crt-flicker {
-            0% { opacity: 0.97; }
-            50% { opacity: 1; }
-            100% { opacity: 0.98; }
-        }
-        .crt-monitor {
-            animation: crt-flicker 0.15s infinite;
-        }
-    </style>
+    /* ── CARDS ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color var(--transition), transform var(--transition);
+    }
+    .card:hover {
+      border-color: var(--border-focus);
+      transform: translateY(-2px);
+    }
+    .card-sm {
+      background: var(--bg-card);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      transition: border-color var(--transition);
+    }
+    .card-sm:hover { border-color: var(--border-focus); }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-value {
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+
+    /* ── BADGES ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .badge-blue   { background: var(--blue-dim);   color: var(--blue); }
+    .badge-amber  { background: var(--amber-dim);  color: var(--amber); }
+    .badge-emerald{ background: var(--emerald-dim); color: var(--emerald); }
+    .badge-rose   { background: var(--rose-dim);   color: var(--rose); }
+    .badge-purple { background: var(--purple-dim); color: var(--purple); }
+    .badge-cyan   { background: var(--cyan-dim);   color: var(--cyan); }
+
+    /* ── NAV ───────────────────────────────────────────────────── */
+    .nav-link { transition: color 0.2s ease; color: #a3a3a3; position: relative; z-index: 1; }
+    .nav-link:hover { color: #fff; }
+    .nav-link.active { color: #fff; }
+
+    /* Sliding pill indicator */
+    #nav-slider {
+      position: absolute;
+      height: calc(100% - 8px);
+      top: 4px;
+      left: 0;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0;
+    }
+    #nav-slider.visible { opacity: 1; }
+    .cta-btn { transition: background 0.15s ease; }
+    .cta-btn:hover { background: #e5e5e5 !important; }
+
+    /* ── DIVIDERS ───────────────────────────────────────────────── */
+    .divider-up   { transform: rotate(15deg); }
+    .divider-down { transform: rotate(-15deg); }
+
+    /* ── PROGRESS BARS ─────────────────────────────────────────── */
+    .bar-track {
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+      width: 0;
+    }
+    .bar-fill.animated { width: var(--w); }
+
+    /* ── FEATURE TABLE ─────────────────────────────────────────── */
+    .feat-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+    .feat-table th {
+      text-align: left;
+      padding: 10px 16px;
+      color: var(--text-dim);
+      font-weight: 500;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-card);
+      z-index: 1;
+    }
+    .feat-table td {
+      padding: 9px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      color: var(--text-muted);
+    }
+    .feat-table tr:hover td { color: var(--text); background: rgba(255,255,255,0.02); }
+    .feat-table .feat-name { color: var(--text); font-family: var(--mono); font-size: 12px; }
+
+    /* ── GAUGE ──────────────────────────────────────────────────── */
+    .gauge-container {
+      width: 280px; height: 280px;
+      position: relative; margin: 0 auto;
+    }
+    .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+    .gauge-bg {
+      fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 12;
+      stroke-linecap: round;
+    }
+    .gauge-fill {
+      fill: none; stroke-width: 12; stroke-linecap: round;
+      stroke-dasharray: 754; /* 2 * pi * 120 */
+      stroke-dashoffset: 754;
+      transition: stroke-dashoffset 2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .gauge-fill.animated { stroke-dashoffset: var(--offset); }
+    .gauge-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .gauge-value { font-size: 48px; font-weight: 600; letter-spacing: -0.03em; }
+    .gauge-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── PIPELINE FLOW ─────────────────────────────────────────── */
+    .pipeline-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      padding: 20px 0;
+    }
+    .pipeline-node {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      min-width: 140px; flex-shrink: 0;
+      text-align: center;
+    }
+    .pipeline-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .pipeline-icon:hover { transform: scale(1.1); box-shadow: 0 0 24px rgba(255,255,255,0.1); }
+    .pipeline-name { font-size: 12px; font-weight: 500; color: var(--text); }
+    .pipeline-detail { font-size: 10px; color: var(--text-dim); max-width: 120px; }
+    .pipeline-arrow {
+      font-size: 18px; color: var(--text-dim);
+      flex-shrink: 0; margin: 0 -4px;
+      padding-bottom: 30px;
+    }
+
+    /* ── AGENT CARDS ────────────────────────────────────────────── */
+    .agent-card { position: relative; overflow: hidden; }
+    .agent-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .agent-num {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600;
+    }
+    .agent-card .writes { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+    /* ── METRICS TABLE ──────────────────────────────────────────── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .metric-card {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .metric-label { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+
+    /* ── HYPERPARAMS ───────────────────────────────────────────── */
+    .param-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+      font-size: 13px;
+    }
+    .param-grid .pk, .param-grid .pv {
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .param-grid .pk { color: var(--text-dim); font-family: var(--mono); font-size: 12px; }
+    .param-grid .pv { color: var(--text); text-align: right; font-family: var(--mono); font-size: 12px; }
+
+    /* ── ENDPOINT CARDS ────────────────────────────────────────── */
+    .endpoint-method {
+      padding: 3px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; font-family: var(--mono);
+    }
+    .method-get  { background: var(--emerald-dim); color: var(--emerald); }
+    .method-post { background: var(--blue-dim); color: var(--blue); }
+
+    /* ── DATA SOURCE ROW ───────────────────────────────────────── */
+    .source-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .source-row:last-child { border-bottom: none; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block; margin-right: 8px;
+    }
+    .status-ok   { background: var(--emerald); box-shadow: 0 0 8px rgba(16,185,129,0.4); }
+    .status-live { background: var(--amber); box-shadow: 0 0 8px rgba(245,158,11,0.4); animation: pulse-dot 2s infinite; }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── FEATURE GROUP PILLS ──────────────────────────────────── */
+    .fg-pill {
+      cursor: pointer;
+      padding: 8px 18px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font);
+      transition: all var(--transition);
+    }
+    .fg-pill:hover, .fg-pill.active {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border-color: var(--border-focus);
+    }
+
+    /* ── RESPONSIVE ────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .tab-section { padding: 80px 20px 60px; }
+      .grid-2, .grid-3, .grid-6 { grid-template-columns: 1fr; }
+      .pipeline-flow { justify-content: flex-start; }
+      .gauge-container { width: 220px; height: 220px; }
+      .feat-table-wrap { overflow-x: auto; }
+    }
+
+    /* ── ANIMATIONS ────────────────────────────────────────────── */
+    .fade-up {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+    @keyframes count-up { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .brief-card {
+      background: linear-gradient(135deg, rgba(23,23,23,0.95), rgba(30,30,30,0.90));
+      border-left: 3px solid var(--amber);
+    }
+    .brief-card .brief-content {
+      font-size: 14px; line-height: 1.7;
+      color: rgba(255,255,255,0.85);
+      font-style: italic;
+    }
+    select {
+    color-scheme: dark; /* Helps native dropdowns in some browsers */
+  }
+  select option {
+    background-color: #111;
+    color: #fff;
+  }
+</style>
 </head>
-<body class="font-body text-zinc-200 min-h-screen select-none">
-    <div id="root"></div>
+<body>
 
-    <!-- React Application Code -->
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+<!-- ═══════════════════════════════════════════════════════════════════
+     SECTION 0 — HERO (preserved from original)
+     ═══════════════════════════════════════════════════════════════════ -->
+<section id="hero" style="position:relative; height:100vh; width:100%; overflow:hidden; background:#000;">
 
-        function App() {
-            // ─── STATE MANAGEMENT ──────────────────────────────────────────
-            const [activeTab, setActiveTab] = useState('prematch');
-            const [currentOver, setCurrentOver] = useState(12);
-            const [miWinProb, setMiWinProb] = useState(54.0);
-            const [overTracker, setOverTracker] = useState([1,2,3,4,5,6,7,8,9,10,11,12]);
-            const [winProbData, setWinProbData] = useState([50,51,48,52,55,53,50,52,55,56,53,54]);
-            const [weatherApiOnline, setWeatherApiOnline] = useState(true);
-            const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [showOverrideNotice, setShowOverrideNotice] = useState(false);
-            const [driftScore, setDriftScore] = useState(0.12);
-            
-            // Custom state values
-            const [matchMeta, setMatchMeta] = useState({
-                team1: 'Mumbai Indians',
-                team2: 'Chennai Super Kings',
-                venue: 'Wankhede Stadium',
-                date: '2025-04-15',
-                night: true,
-                validationPassed: true,
-                featuresActive: 44,
-                modelVersion: 'XGB-v2.6.4'
-            });
+  <!-- Background video -->
+  <video
+    style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover;"
+    autoplay loop muted playsinline
+    src="IPL_Trophy_bg_video.mp4"
+  ></video>
 
-            const [extraneousData, setExtraneousData] = useState({
-                fatigueT1: 0.56,
-                pitchDeterioration: 0.42,
-                restDays: 3,
-                heatStress: 0.68,
-                travelKm: 1200,
-                travelBurden: 0.72,
-                dewRisk: true,
-                dewOnsetOver: 14,
-                rawWeather: true
-            });
+  <!-- Dark overlay -->
+  <div style="position:absolute; inset:0; background:rgba(0,0,0,0.50);"></div>
 
-            const [featureDrivers, setFeatureDrivers] = useState([
-                { name: 'Dew risk flag', score: 0.0821, pct: 82 },
-                { name: 'Venue chasing win rate', score: 0.0674, pct: 67 },
-                { name: 'Team 2 win rate (last 5)', score: 0.0542, pct: 54 },
-                { name: 'Dewpoint night avg.', score: 0.0398, pct: 40 },
-                { name: 'Team 1 travel burden', score: 0.0312, pct: 31 }
-            ]);
+  <!-- ── Navbar ─────────────────────────────────────────── -->
+  <nav id="main-nav" style="position:fixed; z-index:100; top:0; left:0; right:0;
+              padding: 16px 40px 0;
+              display:flex; align-items:center; justify-content:space-between; gap:16px;
+              transition: background 0.3s ease;">
 
-            const [tacticalAlerts, setTacticalAlerts] = useState([
-                {
-                    id: 1,
-                    type: 'warning',
-                    title: 'Bowling Change Signal',
-                    text: 'Introduce left-arm spin now. Matchup metric shows 18.4% Strike Rate decrease vs current batting stance.',
-                    time: 'Over 11'
-                },
-                {
-                    id: 2,
-                    type: 'success',
-                    title: 'Momentum Shift',
-                    text: 'MI batting momentum +0.18 over baseline projection following back-to-back boundaries in Over 11.',
-                    time: 'Over 12'
-                }
-            ]);
+    <!-- Left pill — brand -->
+    <a href="#hero" style="text-decoration:none; display:flex; align-items:center; gap:8px;
+                background:rgba(23,23,23,0.90); backdrop-filter:blur(12px);
+                border-radius:9999px; padding:10px 20px 10px 16px;">
+      <!-- Wicket SVG -->
+      <svg viewBox="0 0 24 24" style="height:20px; width:20px;" fill="none">
+        <rect x="4"  y="2"  width="2" height="14" rx="1" fill="white"/>
+        <rect x="11" y="2"  width="2" height="14" rx="1" fill="white"/>
+        <rect x="18" y="2"  width="2" height="14" rx="1" fill="white"/>
+        <rect x="3"  y="1"  width="5" height="1.5" rx="0.75" fill="white"/>
+        <rect x="10" y="1"  width="5" height="1.5" rx="0.75" fill="white"/>
+        <rect x="17" y="1"  width="5" height="1.5" rx="0.75" fill="white"/>
+        <rect x="2"  y="17" width="20" height="2"  rx="1" fill="white" opacity="0.4"/>
+        <ellipse cx="12" cy="21" rx="8" ry="1.2" fill="white" opacity="0.15"/>
+      </svg>
+      <span style="color:#fff; font-size:14px; font-weight:400; letter-spacing:-0.01em;">ipl intel</span>
+    </a>
 
-            const [narrativeText, setNarrativeText] = useState([
-                "TOSS RECOMMENDATION: Bowl First. CSK hold a 54% win probability as the chasing team at Wankhede tonight. The dew risk flag is the primary model driver — dewpoint has crossed 17°C with 78% humidity, and historical data from this venue confirms dew onset around over 14 in similar conditions.",
-                "MI's fatigue index is 0.56 — elevated due to 1,200km travel from Ahmedabad with only 3 days rest. Bowling accuracy in death overs historically drops 6–8% under similar fatigue loads. Priority: keep your main death bowler for overs 17–19, not 16.",
-                "TACTICAL BRIEF: Hold spinners until the ball dries at the strategic timeout. Use cross-seam on the wet surface between overs 12–15. Field placements: point up for skid-through deliveries."
-            ]);
+    <!-- Center pill — nav links -->
+    <div id="nav-center"
+         style="position:relative; display:flex; align-items:center; gap:4px;
+                background:rgba(23,23,23,0.90); backdrop-filter:blur(12px);
+                border-radius:9999px; padding:4px 8px;">
+      <div id="nav-slider"></div>
+      <a href="#prematch"    class="nav-link" data-section="prematch"    style="text-decoration:none; font-size:14px; padding:6px 16px; border-radius:9999px;">pre-match intel</a>
+      <a href="#explainable" class="nav-link" data-section="explainable" style="text-decoration:none; font-size:14px; padding:6px 16px; border-radius:9999px;">explainable ai</a>
+      <a href="#pitwall"     class="nav-link" data-section="pitwall"     style="text-decoration:none; font-size:14px; padding:6px 16px; border-radius:9999px;">live pit-wall</a>
+      <a href="#diagnostics" class="nav-link" data-section="diagnostics" style="text-decoration:none; font-size:14px; padding:6px 16px; border-radius:9999px;">system health</a>
+    </div>
 
-            const [terminalLogs, setTerminalLogs] = useState([
-                "SYSTEM: Initializing LangGraph multi-agent win-prediction environment...",
-                "INGESTION: Ingested 142 raw feature fields from local persistence layer.",
-                "EXTRANEOUS: Computed Fatigue Indexes for Mumbai Indians (T1) and Chennai Super Kings (T2)...",
-                "EXTRANEOUS_AGENT: Weather telemetry obtained from regional api feed.",
-                "VALIDATION: All structural validation schemas marked PASS.",
-                "PREDICTION: Platt-calibrated baseline engine run complete. Initializing Narrative parser..."
-            ]);
+    <!-- Right CTA -->
+    <button class="cta-btn"
+            style="background:#fff; color:#000; font-family:inherit;
+                   font-size:14px; font-weight:400; border:none; cursor:pointer;
+                   border-radius:9999px; padding:10px 20px; white-space:nowrap;"
+            onclick="document.getElementById('prematch').scrollIntoView({behavior:'smooth'})">
+      explore system
+    </button>
+  </nav>
 
-            // Form overrides
-            const [overridePitch, setOverridePitch] = useState('none');
-            const [overrideInjury, setOverrideInjury] = useState('none');
-            const [overrideCustom, setOverrideCustom] = useState('');
+  <!-- ── Global Sticky Tactical Brief ─────────────────────────────── -->
+  <div id="global-tactical-brief" style="position:fixed; z-index:99; top:70px; left:0; right:0; padding:12px 40px; display:none; background:rgba(10,10,10,0.85); backdrop-filter:blur(16px); border-bottom:1px solid var(--border); transition: transform 0.3s ease;">
+    <div style="max-width:1400px; margin:0 auto; display:flex; gap:24px; align-items:flex-start;">
+      <!-- Toss recommendation -->
+      <div style="flex:1;">
+        <div style="font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Toss Recommendation</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="global-toss-badge" class="badge badge-emerald">--</span>
+          <span id="global-toss-rationale" style="font-size:13px; color:var(--text-muted); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">--</span>
+        </div>
+      </div>
+      <!-- Squad Tweaks -->
+      <div style="flex:1.5; border-left:1px solid var(--border); padding-left:24px;">
+        <div style="font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;">Squad Roster Tweaks</div>
+        <div id="global-squad-tweaks" style="font-size:13px; color:var(--text-muted); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">--</div>
+      </div>
+    </div>
+  </div>
 
-            // Ref objects
-            const chartRef = useRef(null);
-            const chartInstance = useRef(null);
-            const terminalEndRef = useRef(null);
+  <!-- ── Foreground content ─────────────────────────────── -->
+  <div style="position:relative; z-index:10; height:100%; width:100%; pointer-events:none; padding-top:40px;">
 
-            // ─── EFFECTS & ENGINE CONTROLS ──────────────────────────────────
-            useEffect(() => {
-                if (terminalEndRef.current) {
-                    terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
-                }
-            }, [terminalLogs]);
+    <!-- Staggered headline -->
+    <h1 class="hero-title"
+        style="position:absolute; inset:0; font-weight:500; color:#fff;
+               font-size:13vw; pointer-events:none; user-select:none;">
+      <span style="position:absolute; left:clamp(16px,2.5vw,40px); top:18%;">predict</span>
+      <span style="position:absolute; right:clamp(16px,2.5vw,40px); top:36%;">every</span>
+      <span style="position:absolute; left:clamp(10%,16%,24%); top:54%;">match</span>
+    </h1>
 
-            // Chart Initialization & Rendering logic
-            useEffect(() => {
-                if (activeTab === 'pitwall') {
-                    const ctx = document.getElementById('winProbChartReact')?.getContext('2d');
-                    if (ctx) {
-                        if (chartInstance.current) {
-                            chartInstance.current.destroy();
-                        }
+    <!-- Description -->
+    <p style="position:absolute; pointer-events:auto;
+              left:clamp(24px,2.5vw,40px); top:46%;
+              max-width:260px; font-size:15px; line-height:1.4;
+              color:rgba(255,255,255,0.80);">
+      multi-agent langgraph system trained on 17 seasons of ipl
+      ball-by-ball data, real weather, and scheduling intelligence
+    </p>
 
-                        const purpleGlow = ctx.createLinearGradient(0, 0, 0, 400);
-                        purpleGlow.addColorStop(0, 'rgba(168, 85, 247, 0.25)');
-                        purpleGlow.addColorStop(1, 'rgba(168, 85, 247, 0)');
+    <!-- Stat — top right: matches trained -->
+    <div style="position:absolute; pointer-events:auto;
+                right:clamp(24px,6vw,96px); top:16%;
+                text-align:right; display:flex; flex-direction:column; align-items:flex-end;">
+      <div style="display:flex; align-items:center; gap:12px; justify-content:flex-end;">
+        <div class="divider-up"
+             style="height:1px; width:80px; background:rgba(255,255,255,0.40);"></div>
+        <span style="font-size:clamp(28px,4vw,48px); font-weight:500; letter-spacing:-0.03em;">1,200+</span>
+      </div>
+      <span style="font-size:13px; color:rgba(255,255,255,0.70); margin-top:4px;">ipl matches trained</span>
+    </div>
 
-                        chartInstance.current = new Chart(ctx, {
-                            type: 'line',
-                            data: {
-                                labels: overTracker,
-                                datasets: [{
-                                    label: 'MI Real-time Win %',
-                                    data: winProbData,
-                                    borderColor: '#c084fc',
-                                    backgroundColor: purpleGlow,
-                                    fill: true,
-                                    tension: 0.35,
-                                    borderWidth: 2,
-                                    pointBackgroundColor: '#2dd4bf',
-                                    pointBorderColor: '#050507',
-                                    pointBorderWidth: 2,
-                                    pointRadius: 4,
-                                    pointHoverRadius: 7,
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    legend: { display: false }
-                                },
-                                scales: {
-                                    y: {
-                                        min: 0,
-                                        max: 100,
-                                        ticks: { color: '#71717a', font: { size: 9, family: 'Fira Code' } },
-                                        grid: { color: '#161622' }
-                                    },
-                                    x: {
-                                        ticks: { color: '#71717a', font: { size: 9, family: 'Fira Code' } },
-                                        grid: { display: false }
-                                    }
-                                }
-                            }
-                        });
-                    }
-                }
-                return () => {
-                    if (chartInstance.current) {
-                        chartInstance.current.destroy();
-                        chartInstance.current = null;
-                    }
-                };
-            }, [activeTab, overTracker, winProbData]);
+    <!-- Stat — bottom left: features -->
+    <div style="position:absolute; pointer-events:auto;
+                left:clamp(24px,5vw,80px); bottom:96px;
+                display:flex; flex-direction:column; align-items:flex-start;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:clamp(28px,4vw,48px); font-weight:500; letter-spacing:-0.03em;">44</span>
+        <div class="divider-down"
+             style="height:1px; width:80px; background:rgba(255,255,255,0.40);"></div>
+      </div>
+      <span style="font-size:13px; color:rgba(255,255,255,0.70); margin-top:4px;">features per match</span>
+    </div>
 
-            const logMessage = (text) => {
-                const timestamp = new Date().toLocaleTimeString();
-                setTerminalLogs(prev => [...prev, `[${timestamp}] ${text}`]);
-            };
+    <!-- Stat — bottom right: agents -->
+    <div style="position:absolute; pointer-events:auto;
+                right:clamp(24px,5vw,80px); bottom:80px;
+                text-align:right; display:flex; flex-direction:column; align-items:flex-end;">
+      <div style="display:flex; align-items:center; gap:12px; justify-content:flex-end;">
+        <div class="divider-down"
+             style="height:1px; width:80px; background:rgba(255,255,255,0.40);"></div>
+        <span style="font-size:clamp(28px,4vw,48px); font-weight:500; letter-spacing:-0.03em;">6</span>
+      </div>
+      <span style="font-size:13px; color:rgba(255,255,255,0.70); margin-top:4px;">langgraph agents</span>
+    </div>
 
-            // Advance Over simulation trigger
-            const simulateNewOver = () => {
-                if (currentOver >= 20) {
-                    alert('Simulation complete. End of innings. Reset state to run another match cycle.');
-                    return;
-                }
+  </div>
 
-                setIsAnalyzing(true);
-                const nextOver = currentOver + 1;
-                const swing = parseFloat(((Math.random() * 14) - 7).toFixed(1));
-                const nextProb = Math.min(95, Math.max(5, parseFloat((miWinProb + swing).toFixed(1))));
+  <!-- Bottom gradient fade -->
+  <div style="pointer-events:none; position:absolute; bottom:0; left:0; right:0;
+              height:192px;
+              background:linear-gradient(to bottom, transparent, #000);"></div>
 
-                logMessage(`SIMULATION: Processing physical state modifications for Over ${nextOver}...`);
+</section>
 
-                setTimeout(() => {
-                    setCurrentOver(nextOver);
-                    setMiWinProb(nextProb);
-                    setOverTracker(prev => [...prev, nextOver]);
-                    setWinProbData(prev => [...prev, nextProb]);
 
-                    // Add simulated drift
-                    const addedDrift = parseFloat((Math.random() * 0.04).toFixed(3));
-                    setDriftScore(prev => Math.min(0.24, parseFloat((prev + addedDrift).toFixed(2))));
+<!-- ═══════════════════════════════════════════════════════════════════
+     TAB 1 — PRE-MATCH INTEL
+     ═══════════════════════════════════════════════════════════════════ -->
+<section id="prematch" class="tab-section">
+  <div class="section-header fade-up">
+    <p class="label" style="margin-bottom:12px;">tab 01</p>
+    <h2 class="section-title">Pre-Match Intel</h2>
+    <p class="section-subtitle">44-feature engineering pipeline trained on 17 IPL seasons. Every match distilled into 7 signal groups that feed the XGBoost classifier.</p>
+  </div>
 
-                    // Dynamic Live tactical alert triggers
-                    if (swing > 3.0) {
-                        const alertItem = {
-                            id: Date.now(),
-                            type: 'success',
-                            title: `Surge Detected — Over ${nextOver}`,
-                            text: `Mumbai Indians win probability surged by +${Math.abs(swing)}% due to calculated batting acceleration. Expected boundary rate exceeded.`,
-                            time: `Over ${nextOver}`
-                        };
-                        setTacticalAlerts(prev => [alertItem, ...prev]);
-                        logMessage(`XGBOOST: Momentum spike calculated (+${swing}%). Recalibrated predictions.`);
-                    } else if (swing < -3.0) {
-                        const alertItem = {
-                            id: Date.now(),
-                            type: 'danger',
-                            title: `Bowling Counter — Over ${nextOver}`,
-                            text: `CSK Bowling pressure registered. Win probability shifted ${Math.abs(swing)}% towards Chennai Super Kings. Expected run rate dropping.`,
-                            time: `Over ${nextOver}`
-                        };
-                        setTacticalAlerts(prev => [alertItem, ...prev]);
-                        logMessage(`XGBOOST: Defensive shift registered (${swing}%). Adjusting chasing parameters.`);
-                    } else {
-                        logMessage(`INGESTION: Normal game progression logged. Micro-adjustments calibrated.`);
-                    }
+    <!-- ── Match Validation Select ── -->
+    <div class="card-sm fade-up" style="margin-top:32px; margin-bottom:56px;">
+      <p class="label" style="margin-bottom:16px; color:var(--amber);">2026 Season Validation Sandbox</p>
+      <div style="display:flex; gap:16px; align-items:flex-end;">
+        <div style="flex:2;">
+          <label style="display:block; font-size:12px; margin-bottom:6px; color:var(--text-muted);">Select a Historical 2026 Match</label>
+          <select id="schedule-dropdown" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:#fff; border-radius:6px;">
+            <option value="">Loading 2026 schedule...</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block; font-size:12px; margin-bottom:6px; color:var(--text-muted);">Perspective (POV)</label>
+          <select id="pov-team-dropdown" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:#fff; border-radius:6px;" disabled>
+            <option value="">Select match first</option>
+          </select>
+        </div>
+        <button id="simulate-btn" style="padding:10px 24px; background:var(--amber); color:#000; border:none; border-radius:6px; font-weight:600; cursor:pointer; height:40px;">
+          Generate Pre-Match Intel
+        </button>
+      </div>
+    </div>
 
-                    setIsAnalyzing(false);
-                }, 400);
-            };
+    <!-- ── Reality Check Cross-Reference ── -->
+    <div id="reality-check-section" class="card fade-up" style="margin-bottom:56px; display:none; border:1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <span class="label" style="margin:0; color:var(--rose);">Reality Check</span>
+        <button id="reveal-btn" style="padding:6px 12px; background:rgba(255,255,255,0.1); color:#fff; border:1px solid var(--border); border-radius:4px; font-size:12px; cursor:pointer;">
+          Reveal Actual Result
+        </button>
+      </div>
+      <div id="reality-check-content" style="display:none; font-size:14px; color:var(--text); line-height:1.6;">
+        <div style="display:flex; gap:20px;">
+          <div style="flex:1; padding:12px; background:rgba(255,255,255,0.02); border-radius:6px; border-left:2px solid var(--amber);">
+            <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px;">Predicted Outcome</div>
+            <div id="rc-pred-winner" style="font-weight:600; margin-bottom:4px;">--</div>
+            <div id="rc-pred-toss" style="font-size:13px; color:var(--text-muted);">--</div>
+          </div>
+          <div style="flex:1; padding:12px; background:rgba(255,255,255,0.02); border-radius:6px; border-left:2px solid var(--emerald);">
+            <div style="font-size:12px; color:var(--text-dim); margin-bottom:4px;">Actual Result</div>
+            <div id="rc-actual-winner" style="font-weight:600; margin-bottom:4px;">--</div>
+            <div id="rc-actual-toss" style="font-size:13px; color:var(--text-muted);">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-            const resetSimulation = () => {
-                setIsAnalyzing(true);
-                logMessage("SYSTEM: Invoking master reset. Purging simulation caches.");
-                setTimeout(() => {
-                    setCurrentOver(12);
-                    setMiWinProb(54.0);
-                    setOverTracker([1,2,3,4,5,6,7,8,9,10,11,12]);
-                    setWinProbData([50,51,48,52,55,53,50,52,55,56,53,54]);
-                    setDriftScore(0.12);
-                    setTacticalAlerts([
-                        {
-                            id: 1,
-                            type: 'warning',
-                            title: 'Bowling Change Signal',
-                            text: 'Introduce left-arm spin now. Matchup metric shows 18.4% Strike Rate decrease vs current batting stance.',
-                            time: 'Over 11'
-                        }
-                    ]);
-                    setIsAnalyzing(false);
-                    logMessage("SYSTEM: Environment parameters initialized back to Baseline (Over 12).");
-                }, 500);
-            };
 
-            // Human Override node processing
-            const applyOverrideNode = (e) => {
-                e.preventDefault();
-                setIsAnalyzing(true);
-                logMessage("OVERRIDE: Active contextual input captured. Preparing LangGraph state intervention.");
-                
-                setTimeout(() => {
-                    let updatedNarrative = [...narrativeText];
-                    let probAdj = 0;
-                    
-                    if (overridePitch === 'damp') {
-                        probAdj -= 8.5;
-                        updatedNarrative.unshift("HUMAN INTERVENTION LOG: Analyst reported damp pitch conditions. Ball expected to grip and slow down dramatically. Advantage to team batting second decreases slightly; pitch deterioration index elevated.");
-                        setExtraneousData(prev => ({ ...prev, pitchDeterioration: 0.78 }));
-                    } else if (overridePitch === 'cracked') {
-                        probAdj += 6.0;
-                        updatedNarrative.unshift("HUMAN INTERVENTION LOG: Analyst reported dry, cracked surface. Fast breakdown expected. Spinners will dominate in the second innings.");
-                        setExtraneousData(prev => ({ ...prev, pitchDeterioration: 0.91 }));
-                    }
+  <!-- Pipeline overview -->
+  <div class="fade-up" style="margin-bottom:56px;">
+    <p class="label" style="margin-bottom:20px;">data pipeline</p>
+    <div class="pipeline-flow">
+      <div class="pipeline-node">
+        <div class="pipeline-icon" style="background:var(--blue-dim); color:var(--blue);">📥</div>
+        <span class="pipeline-name">Phase 1</span>
+        <span class="pipeline-detail">Cricsheet + Weather + Schedule + Player Profiles</span>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-node">
+        <div class="pipeline-icon" style="background:var(--amber-dim); color:var(--amber);">⚙️</div>
+        <span class="pipeline-name">Phase 2</span>
+        <span class="pipeline-detail">Feature Engineering + ETL + Temporal Splits</span>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-node">
+        <div class="pipeline-icon" style="background:var(--emerald-dim); color:var(--emerald);">🧠</div>
+        <span class="pipeline-name">Phase 3</span>
+        <span class="pipeline-detail">XGBoost Training + Platt Calibration</span>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-node">
+        <div class="pipeline-icon" style="background:var(--purple-dim); color:var(--purple);">🤖</div>
+        <span class="pipeline-name">Phase 4</span>
+        <span class="pipeline-detail">6-Agent LangGraph Inference System</span>
+      </div>
+    </div>
+  </div>
 
-                    if (overrideInjury === 'mild-injury') {
-                        probAdj -= 12.0;
-                        updatedNarrative.push("TACTICAL ADJUSTMENT: Core strike bowler carries physical strain. Death overs pacing must be balanced to minimize run leak.");
-                        setExtraneousData(prev => ({ ...prev, fatigueT1: 0.88 }));
-                    } else if (overrideInjury === 'heat-fatigue') {
-                        probAdj -= 4.0;
-                        updatedNarrative.push("TACTICAL ADJUSTMENT: Extreme microclimate strain detected on top order. Expect aggressive, short boundary attempts to conserve physical energy.");
-                        setExtraneousData(prev => ({ ...prev, heatStress: 0.95 }));
-                    }
+  <!-- Training data stats -->
+  <div class="grid-3 fade-up" style="margin-bottom:56px;">
+    <div class="card-sm">
+      <p class="label">training set</p>
+      <div class="card-value" style="color:var(--blue); margin:8px 0 4px;">3,800</div>
+      <p style="font-size:13px; color:var(--text-muted);">matches · seasons 2007–2022</p>
+    </div>
+    <div class="card-sm">
+      <p class="label">validation set</p>
+      <div class="card-value" style="color:var(--amber); margin:8px 0 4px;">296</div>
+      <p style="font-size:13px; color:var(--text-muted);">matches · season 2023</p>
+    </div>
+    <div class="card-sm">
+      <p class="label">test set</p>
+      <div class="card-value" style="color:var(--emerald); margin:8px 0 4px;">876</div>
+      <p style="font-size:13px; color:var(--text-muted);">matches · seasons 2024–2026</p>
+    </div>
+  </div>
 
-                    if (overrideCustom) {
-                        updatedNarrative.push(`ANALYST CUSTOM DIRECTIVE: "${overrideCustom}"`);
-                    }
+  <!-- Feature groups -->
+  <div class="fade-up" style="margin-bottom:28px;">
+    <p class="label" style="margin-bottom:16px;">feature groups · 7 signal categories</p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px;">
+      <button class="fg-pill active" onclick="showGroup('all')">all 44</button>
+      <button class="fg-pill" onclick="showGroup('match_context')">match context <span style="opacity:0.5">5</span></button>
+      <button class="fg-pill" onclick="showGroup('venue')">venue <span style="opacity:0.5">6</span></button>
+      <button class="fg-pill" onclick="showGroup('environmental')">environmental <span style="opacity:0.5">7</span></button>
+      <button class="fg-pill" onclick="showGroup('fatigue')">fatigue <span style="opacity:0.5">10</span></button>
+      <button class="fg-pill" onclick="showGroup('team_form')">team form <span style="opacity:0.5">8</span></button>
+      <button class="fg-pill" onclick="showGroup('player_strength')">player strength <span style="opacity:0.5">6</span></button>
+      <button class="fg-pill" onclick="showGroup('pitch')">pitch <span style="opacity:0.5">2</span></button>
+    </div>
+  </div>
 
-                    setNarrativeText(updatedNarrative);
-                    setMiWinProb(prev => Math.min(95, Math.max(5, parseFloat((prev + probAdj).toFixed(1)))));
-                    setShowOverrideNotice(true);
-                    setIsAnalyzing(false);
-                    setActiveTab('narrative');
-                    logMessage("LANGGRAPH: Dynamic node intervention injected successfully. State propagation updated.");
-                }, 800);
-            };
+  <!-- Feature table -->
+  <div class="card fade-up" style="padding:0; overflow:hidden;">
+    <div class="feat-table-wrap" style="max-height:520px; overflow-y:auto;">
+      <table class="feat-table" id="feat-table">
+        <thead>
+          <tr><th>#</th><th>Feature</th><th>Group</th><th>Source</th><th>Type</th><th>Fallback</th><th>Description</th></tr>
+        </thead>
+        <tbody id="feat-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
-            // Weather Outage Simulation
-            const toggleWeatherStatus = () => {
-                setWeatherApiOnline(!weatherApiOnline);
-                if (weatherApiOnline) {
-                    logMessage("CRITICAL: Weather API connection lost. Activating degraded fallback state mechanism.");
-                    setExtraneousData(prev => ({
-                        ...prev,
-                        rawWeather: false,
-                        heatStress: 0.45 
-                    }));
-                } else {
-                    logMessage("SYSTEM: Connection restored. Live sensor inputs online.");
-                    setExtraneousData(prev => ({
-                        ...prev,
-                        rawWeather: true,
-                        heatStress: 0.68
-                    }));
-                }
-            };
 
-            return (
-                <div class="crt-monitor min-h-screen flex flex-col justify-between">
-                    
-                    {/* ─── SYSTEM HEADER ────────────────────────────────────────────────── */}
-                    <header class="bg-cardBg/95 border-b border-borderClr px-6 py-4 sticky top-0 z-50 backdrop-blur-xl flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div class="flex items-center space-x-4">
-                            <div class="relative bg-gradient-to-br from-brandPurple to-brandPink p-3 rounded-xl shadow-lg shadow-brandPurple/20 flex items-center justify-center">
-                                <i class="fa-solid fa-bolt text-darkBg text-xl font-bold"></i>
-                                <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandTeal opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-3 w-3 bg-brandTeal"></span>
-                                </span>
-                            </div>
-                            <div>
-                                <h1 class="font-display text-lg font-black tracking-widest text-white flex items-center gap-3">
-                                    IPL PIT-WALL PREDICTOR
-                                    <span class="text-xxs bg-brandPurple/10 text-brandPurple px-2.5 py-0.5 rounded border border-brandPurple/20 font-bold uppercase tracking-widest font-mono">
-                                        Agent-Chain v3.4
-                                    </span>
-                                </h1>
-                                <p class="text-xs text-zinc-500 font-mono">Llama-3.3-70b-versatile Narrative Pipeline // Groq LPU Engine</p>
-                            </div>
-                        </div>
+<!-- ═══════════════════════════════════════════════════════════════════
+     TAB 2 — EXPLAINABLE AI
+     ═══════════════════════════════════════════════════════════════════ -->
+<section id="explainable" class="tab-section">
+  <div class="section-header fade-up">
+    <p class="label" style="margin-bottom:12px;">tab 02</p>
+    <h2 class="section-title">Explainable AI</h2>
+    <p class="section-subtitle">Deep dive into model rationales. Visualizing squad balance optimization, expected venue dynamics, and real-time environmental risk curves.</p>
+  </div>
 
-                        {/* Telemetry diagnostics metrics */}
-                        <div class="flex flex-wrap items-center gap-3 text-xs">
-                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
-                                <span class="h-2 w-2 rounded-full bg-brandGreen status-live"></span>
-                                <span class="text-zinc-400">ENGINE: <span class="text-brandGreen font-bold">{matchMeta.modelVersion}</span></span>
-                            </div>
-                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
-                                <i class="fa-solid fa-server text-brandTeal"></i>
-                                <span class="text-zinc-400">GATE: <span class="text-brandTeal font-bold">{matchMeta.validationPassed ? "PASS" : "FAIL"}</span></span>
-                            </div>
-                            <div class="flex items-center space-x-2 bg-zinc-950 px-3 py-2 rounded border border-borderClr font-mono">
-                                <i class="fa-solid fa-microchip text-brandPink"></i>
-                                <span class="text-zinc-400"><span class="text-brandPink font-bold">{matchMeta.featuresActive}</span> FEATURES ACTIVE</span>
-                            </div>
-                        </div>
-                    </header>
+  <div class="grid-2 fade-up" style="margin-top:32px; margin-bottom:40px;">
+    <!-- Squad Optimization and Tweaks -->
+    <div class="card" style="display:flex; flex-direction:column; justify-content:space-between; min-height:400px;">
+      <div>
+        <div class="card-title">
+          <span style="font-size:18px;">👥 Squad Optimization Analysis</span>
+        </div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">
+          Comparing starting roster balance against optimized recommendations derived from historical matchups, player forms, and venue characteristics.
+        </p>
+        
+        <!-- Squad composition visual indicator -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+            <span style="color:var(--text-muted);">Pace Bowlers (vs Recommended)</span>
+            <span class="mono" id="xai-pace-count" style="color:var(--blue);">-- / --</span>
+          </div>
+          <div class="bar-track" style="height:8px; margin-bottom:16px;">
+            <div class="bar-fill" id="xai-pace-bar" style="background:var(--blue); --w:0%;"></div>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+            <span style="color:var(--text-muted);">Spin Bowlers (vs Recommended)</span>
+            <span class="mono" id="xai-spin-count" style="color:var(--purple);">-- / --</span>
+          </div>
+          <div class="bar-track" style="height:8px; margin-bottom:16px;">
+            <div class="bar-fill" id="xai-spin-bar" style="background:var(--purple); --w:0%;"></div>
+          </div>
 
-                    {/* ─── LIVE RUNNERS / PIPELINE LOADERS ───────────────────────────────── */}
-                    {isAnalyzing && (
-                        <div class="bg-brandPurple/10 border-y border-brandPurple/30 text-brandPurple px-6 py-2.5 text-xs font-mono flex items-center justify-between animate-pulse">
-                            <div class="flex items-center space-x-2">
-                                <i class="fa-solid fa-satellite-dish fa-spin text-sm"></i>
-                                <span>COMPUTING MODEL PARAMETERS — LANGGRAPH FEEDBACK LOOP ACTIVE...</span>
-                            </div>
-                            <span class="text-xxs bg-brandPurple/20 px-2 py-0.5 rounded">GRID RECALIBRATING</span>
-                        </div>
-                    )}
+          <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+            <span style="color:var(--text-muted);">Batting Depth Rating</span>
+            <span class="mono" id="xai-bat-count" style="color:var(--emerald);">-- / 8</span>
+          </div>
+          <div class="bar-track" style="height:8px;">
+            <div class="bar-fill" id="xai-bat-bar" style="background:var(--emerald); --w:0%;"></div>
+          </div>
+        </div>
+      </div>
 
-                    {!weatherApiOnline && (
-                        <div class="bg-brandOrange/10 border-y border-brandOrange/30 text-brandOrange px-6 py-2.5 text-xs font-mono flex items-center justify-between">
-                            <div class="flex items-center space-x-2 animate-pulse">
-                                <i class="fa-solid fa-triangle-exclamation"></i>
-                                <span><strong>FALLBACK SYSTEM ENGAGED:</strong> Weather telemetry offline. Utilizing baseline climate averages for Wankhede.</span>
-                            </div>
-                            <span class="text-xxs bg-brandOrange/20 px-2 py-0.5 rounded font-bold">DEGRADED MODE</span>
-                        </div>
-                    )}
+      <div style="padding:16px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:10px; margin-top:auto;">
+        <div style="font-size:11px; font-weight:600; color:var(--amber); text-transform:uppercase; margin-bottom:6px; letter-spacing:0.05em;">Squad Optimization Brief</div>
+        <div id="xai-squad-text" style="font-size:13px; color:var(--text); line-height:1.5;">
+          Select a match and run predictions to view deep model squad recommendations.
+        </div>
+      </div>
+    </div>
 
-                    {showOverrideNotice && (
-                        <div class="bg-brandPink/15 border-y border-brandPink/30 text-brandPink px-6 py-2.5 text-xs font-mono flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <i class="fa-solid fa-circle-info"></i>
-                                <span><strong>OVERRIDE APPLIED:</strong> Live predictions adjusted via analyst manual state injection.</span>
-                            </div>
-                            <button onClick={() => setShowOverrideNotice(false)} class="text-xxs hover:underline">DISMISS</button>
-                        </div>
-                    )}
+    <!-- Match Environment Projection -->
+    <div class="card" style="min-height:400px; display:flex; flex-direction:column;">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:18px;">📈 Environmental Deterioration Curves</span>
+        <span class="badge badge-amber" id="xai-env-status">Idle</span>
+      </div>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">
+        Expected trajectories of pitch wear and atmospheric dew risk plotted over 20 overs.
+      </p>
+      
+      <div style="flex:1; position:relative; min-height:240px; width:100%;">
+        <canvas id="envChart"></canvas>
+      </div>
+    </div>
+  </div>
 
-                    {/* ─── MAIN SYSTEM CONTENT GRID ──────────────────────────────────────── */}
-                    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-                        
-                        {/* SIDEBAR TACTICAL TERMINAL & CONTROLS */}
-                        <aside class="w-full lg:w-80 bg-zinc-950/60 border-b lg:border-b-0 lg:border-r border-borderClr p-5 flex flex-col justify-between space-y-6 flex-shrink-0">
-                            <div class="space-y-6">
-                                <div>
-                                    <div class="text-xxs uppercase tracking-widest text-zinc-600 font-bold px-1 mb-2 font-mono">System Console</div>
-                                    <nav class="space-y-1 font-display">
-                                        <button onClick={() => setActiveTab('prematch')}
-                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'prematch' ? 'bg-brandPurple/10 border-l-2 border-brandPurple text-brandPurple font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
-                                            <span class="flex items-center space-x-3">
-                                                <i class="fa-solid fa-calendar-day w-4 text-center text-xs"></i>
-                                                <span>PRE-MATCH INTEL</span>
-                                            </span>
-                                            <span class="text-xxs font-mono text-zinc-600">[01]</span>
-                                        </button>
-                                        <button onClick={() => setActiveTab('pitwall')}
-                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'pitwall' ? 'bg-brandTeal/10 border-l-2 border-brandTeal text-brandTeal font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
-                                            <span class="flex items-center space-x-3">
-                                                <i class="fa-solid fa-gauge-high w-4 text-center text-xs"></i>
-                                                <span>LIVE PIT-WALL</span>
-                                            </span>
-                                            <span class="text-xxs font-mono text-zinc-600">[02]</span>
-                                        </button>
-                                        <button onClick={() => setActiveTab('narrative')}
-                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'narrative' ? 'bg-brandPink/10 border-l-2 border-brandPink text-brandPink font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
-                                            <span class="flex items-center space-x-3">
-                                                <i class="fa-solid fa-message-captions w-4 text-center text-xs"></i>
-                                                <span>TACTICAL NARRATIVE</span>
-                                            </span>
-                                            <span class="text-xxs font-mono text-zinc-600">[03]</span>
-                                        </button>
-                                        <button onClick={() => setActiveTab('diagnostics')}
-                                            class={`w-full flex items-center justify-between px-3.5 py-3 rounded text-xs transition-all tracking-wider ${activeTab === 'diagnostics' ? 'bg-brandOrange/10 border-l-2 border-brandOrange text-brandOrange font-bold' : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-white'}`}>
-                                            <span class="flex items-center space-x-3">
-                                                <i class="fa-solid fa-heart-pulse w-4 text-center text-xs"></i>
-                                                <span>SYSTEM MONITOR</span>
-                                            </span>
-                                            <span class="text-xxs font-mono text-zinc-600">[04]</span>
-                                        </button>
-                                    </nav>
-                                </div>
+  <!-- Venue Historical Matchups & Indicators -->
+  <p class="label fade-up" style="margin-bottom:16px;">venue dynamics & model justifications</p>
+  <div class="grid-3 fade-up">
+    <!-- PDI card -->
+    <div class="card-sm">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span class="card-title" style="margin:0; font-size:14px;">🏟️ Venue Deterioration Index (PDI)</span>
+        <span class="badge badge-cyan" id="xai-pdi-label">--</span>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px; min-height:48px;" id="xai-pdi-desc">
+        Select a match to load venue-specific pitch deterioration. High PDI signals faster pitch decay, making batting first preferred.
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="xai-pdi-bar" style="background:var(--cyan); --w:0%;"></div></div>
+    </div>
 
-                                {/* Active Pipeline Visualization */}
-                                <div class="pt-4 border-t border-borderClr">
-                                    <div class="text-xxs uppercase tracking-widest text-zinc-600 font-bold px-1 mb-3.5 font-mono">Agent Processing Pipe</div>
-                                    <div class="space-y-1.5 font-mono text-xxs">
-                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
-                                            <span class="text-zinc-400">Ingestion Pipeline</span>
-                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
-                                        </div>
-                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
-                                            <span class="text-zinc-400">Extraneous Factor</span>
-                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
-                                        </div>
-                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
-                                            <span class="text-zinc-400">Feature Generator</span>
-                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
-                                        </div>
-                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
-                                            <span class="text-zinc-400">Prediction Engine</span>
-                                            <span class="text-brandGreen font-bold flex items-center gap-1">● READY</span>
-                                        </div>
-                                        <div class="flex items-center justify-between p-2 rounded bg-zinc-900/40 border border-borderClr">
-                                            <span class="text-zinc-400">Narrative Generator</span>
-                                            <span class="text-brandTeal font-bold flex items-center gap-1 status-live">● ONLINE</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+    <!-- Dew Risk card -->
+    <div class="card-sm">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span class="card-title" style="margin:0; font-size:14px;">💧 Atmospheric Dew Factor</span>
+        <span class="badge badge-blue" id="xai-dew-label">--</span>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px; min-height:48px;" id="xai-dew-desc">
+        Dew increases grip degradation for bowlers, strongly favoring the chasing team. High night humidity and low wind speed spike dew risk.
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="xai-dew-bar" style="background:var(--blue); --w:0%;"></div></div>
+    </div>
 
-                            {/* Simulation telemetry controls */}
-                            <div class="space-y-4">
-                                <div class="bg-zinc-950 p-4 rounded border border-borderClr space-y-3.5">
-                                    <h4 class="text-xxs font-bold text-zinc-400 flex items-center gap-2 font-display uppercase tracking-widest">
-                                        <i class="fa-solid fa-gamepad text-brandTeal"></i> MATCH SIMULATOR
-                                    </h4>
-                                    <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Simulate continuous physical play. Advancing overs recalibrates neural projections and generates telemetry drift.</p>
-                                    
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <button onClick={simulateNewOver}
-                                            class="bg-brandTeal text-darkBg hover:bg-brandTeal/90 text-xxs font-bold py-2.5 px-3 rounded flex justify-center items-center gap-1.5 transition font-display uppercase tracking-wider">
-                                            <i class="fa-solid fa-forward-step"></i> OVER {currentOver < 20 ? currentOver + 1 : 20}
-                                        </button>
-                                        <button onClick={resetSimulation}
-                                            class="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xxs font-bold py-2.5 px-3 rounded border border-borderClr transition font-display uppercase tracking-wider">
-                                            <i class="fa-solid fa-rotate-left"></i> RESET
-                                        </button>
-                                    </div>
-                                </div>
+    <!-- Matchup Strategy card -->
+    <div class="card-sm">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <span class="card-title" style="margin:0; font-size:14px;">🎯 Venue Spin Factor</span>
+        <span class="badge badge-purple" id="xai-spin-label">--</span>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px; min-height:48px;" id="xai-spin-desc">
+        Average spinner efficiency at this venue. Used by the model to justify roster modifications and bowling layouts.
+      </div>
+      <div class="bar-track"><div class="bar-fill" id="xai-spin-bar" style="background:var(--purple); --w:0%;"></div></div>
+    </div>
+  </div>
+</section>
 
-                                {/* Live Terminal Console Screen */}
-                                <div class="bg-black border border-borderClr p-3 rounded font-mono text-xxs">
-                                    <div class="flex justify-between items-center text-zinc-600 mb-2 border-b border-borderClr pb-1.5 font-bold">
-                                        <span>TELEMETRY_LOGS</span>
-                                        <span class="status-live text-brandTeal">● LIVE</span>
-                                    </div>
-                                    <div class="h-32 overflow-y-auto space-y-1.5 text-zinc-400 scrollbar-thin">
-                                        {terminalLogs.map((log, index) => (
-                                            <div key={index} class="leading-relaxed break-words hover:text-white transition">
-                                                <span class="text-brandPurple select-none">&gt;</span> {log}
-                                            </div>
-                                        ))}
-                                        <div ref={terminalEndRef} />
-                                    </div>
-                                </div>
-                            </div>
-                        </aside>
 
-                        {/* TELEMETRY DASHBOARD MAIN VIEWPORT */}
-                        <main class="flex-1 p-6 overflow-y-auto space-y-6">
+<!-- ═══════════════════════════════════════════════════════════════════
+     TAB 3 — LIVE PIT-WALL
+     ═══════════════════════════════════════════════════════════════════ -->
+<section id="pitwall" class="tab-section">
+  <div class="section-header fade-up">
+    <p class="label" style="margin-bottom:12px;">tab 03</p>
+    <h2 class="section-title">Live Pit-Wall</h2>
+    <p class="section-subtitle">Real-time match simulation command center. Leverage simulated over-by-over progression to evaluate how team strategies and live match events affect win probability.</p>
+  </div>
 
-                            {/* ─── VIEW TAB: PRE-MATCH INTEL ───────────────────────────────── */}
-                            {activeTab === 'prematch' && (
-                                <div class="space-y-6 animate-fadeIn">
-                                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                                        
-                                        {/* Core Match Frame HUD */}
-                                        <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between min-h-[220px]">
-                                            <div>
-                                                <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">COGNITIVE MATCH HEADER // INTEL-CHAIN</span>
-                                                <div class="flex justify-between items-start mt-2">
-                                                    <div>
-                                                        <h2 class="font-display text-3xl font-black tracking-widest text-white">{matchMeta.team1} <span class="text-brandPink text-xl italic font-light">vs</span> {matchMeta.team2}</h2>
-                                                        <p class="text-xs text-zinc-500 font-mono mt-1">{matchMeta.venue} • {matchMeta.night ? 'NIGHT TELEMETRY' : 'DAY TELEMETRY'} • {matchMeta.date}</p>
-                                                    </div>
-                                                    <div class="text-right font-mono">
-                                                        <div class="text-xxs text-zinc-600">MATCH_HASH</div>
-                                                        <div class="text-xxs text-zinc-400">IPL-2025-F01A9</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div class="bg-zinc-950/80 border border-borderClr p-3 rounded flex items-center space-x-3.5">
-                                                    <i class="fa-solid fa-compass text-brandTeal text-base"></i>
-                                                    <div>
-                                                        <div class="text-xxs text-zinc-500 uppercase tracking-widest font-mono">Toss Directive</div>
-                                                        <div class="text-xs font-bold text-white mt-0.5">
-                                                            {miWinProb > 51 ? "BOWL FIRST — Optimal Chasing Vector" : "BAT FIRST — High First-Innings Defense Edge"}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="bg-zinc-950/80 border border-borderClr p-3 rounded flex items-center space-x-3.5">
-                                                    <i class="fa-solid fa-droplet text-brandPurple text-base"></i>
-                                                    <div>
-                                                        <div class="text-xxs text-zinc-500 uppercase tracking-widest font-mono">Dew Hazard Calculation</div>
-                                                        <div class="text-xs font-bold text-white mt-0.5">
-                                                            {extraneousData.dewRisk ? `High Hazard — Estimated Onset: Over ${extraneousData.dewOnsetOver}` : "Low Hazard Expected"}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+  <!-- Simulated Match Selector / Status Header -->
+  <div class="card fade-up" style="margin-bottom:24px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px;">
+    <div>
+      <div id="pitwall-match-title" style="font-size:24px; font-weight:600; margin-bottom:6px;">Mumbai Indians vs Chennai Super Kings</div>
+      <p id="pitwall-match-subtitle" style="font-size:13px; color:var(--text-muted);">Wankhede Stadium · 2026 Season</p>
+    </div>
+    
+    <!-- Controls for simulation -->
+    <div style="display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:9999px; padding:6px 16px;">
+      <button id="sim-prev-btn" style="background:none; border:none; color:#fff; cursor:pointer; font-size:16px; padding:4px 8px; opacity:0.3; transition:opacity 0.2s;" disabled>&larr;</button>
+      <div style="font-size:13px; font-weight:600; min-width:90px; text-align:center; color:var(--text-muted);">
+        Over <span id="sim-over-num" style="color:#fff;" class="mono">0</span> / 20
+      </div>
+      <button id="sim-next-btn" style="background:none; border:none; color:#fff; cursor:pointer; font-size:16px; padding:4px 8px; opacity:0.3; transition:opacity 0.2s;" disabled>&rarr;</button>
+      <div style="width:1px; height:18px; background:var(--border);"></div>
+      <button id="sim-play-btn" style="background:none; border:none; color:var(--amber); cursor:pointer; font-size:12px; font-weight:600; padding:4px 8px; text-transform:uppercase; opacity:0.3; transition:opacity 0.2s;" disabled>Play</button>
+    </div>
+  </div>
 
-                                        {/* Win Probability Calibration HUD */}
-                                        <div class="tech-card p-6 flex flex-col justify-between">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <span class="text-xxs uppercase tracking-widest text-zinc-500 font-mono">XGBOOST baseline</span>
-                                                    <h3 class="text-sm font-bold text-white font-display mt-1">WIN PROBABILITY</h3>
-                                                </div>
-                                                <span class="bg-brandGreen/10 text-brandGreen text-xxs px-2.5 py-0.5 rounded border border-brandGreen/20 font-mono font-bold tracking-wider">
-                                                    HIGH CONF
-                                                </span>
-                                            </div>
+  <div class="grid-2 fade-up" style="margin-bottom:24px;">
+    <!-- Win probability gauge & score card -->
+    <div class="card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:400px;">
+      <p class="label" style="margin-bottom:16px;">Live Win Probability</p>
+      
+      <!-- Styled gauge -->
+      <div class="gauge-container" style="width:200px; height:200px; margin-bottom:16px;">
+        <svg class="gauge-svg" viewBox="0 0 260 260">
+          <circle class="gauge-bg" cx="130" cy="130" r="120" />
+          <circle class="gauge-fill" id="pitwall-gauge-arc" cx="130" cy="130" r="120"
+                  style="stroke:var(--amber); --offset:754;" />
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-value" id="pitwall-gauge-val" style="color:var(--amber); font-size:36px;">--%</div>
+          <div class="gauge-label" id="pitwall-gauge-team" style="font-size:11px; text-align:center; color:var(--text-muted);">Select Match First</div>
+        </div>
+      </div>
 
-                                            <div class="my-4">
-                                                <div class="flex justify-between text-xxs font-bold mb-2 font-mono">
-                                                    <span class="text-brandPurple">{matchMeta.team1}</span>
-                                                    <span class="text-brandPink">{matchMeta.team2}</span>
-                                                </div>
-                                                
-                                                {/* Cyberpunk probability progress bar */}
-                                                <div class="w-full bg-zinc-900 h-3.5 rounded overflow-hidden flex border border-borderClr">
-                                                    <div class="bg-gradient-to-r from-brandPurple to-brandPurple/80 h-full transition-all duration-500" style={{ width: `${miWinProb}%` }}></div>
-                                                    <div class="bg-gradient-to-r from-brandPink/80 to-brandPink h-full transition-all duration-500" style={{ width: `${100 - miWinProb}%` }}></div>
-                                                </div>
+      <!-- Scoreboard Display -->
+      <div style="width:100%; border-top:1px solid var(--border); padding-top:16px; text-align:center;">
+        <div style="font-size:20px; font-weight:700; letter-spacing:0.02em;" id="pitwall-live-score" class="mono">
+          --
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:4px;" id="pitwall-live-req">
+          Select a match and run predictions to start the live pit-wall simulation.
+        </p>
+      </div>
+    </div>
 
-                                                <div class="flex justify-between text-xxs font-mono text-zinc-400 mt-2">
-                                                    <span>{miWinProb.toFixed(1)}% Win Rate</span>
-                                                    <span>{(100 - miWinProb).toFixed(1)}% Win Rate</span>
-                                                </div>
-                                            </div>
-                                            <p class="text-xxs text-zinc-600 font-mono leading-relaxed">Calibrated against 44 variables via historical regression weightings.</p>
-                                        </div>
-                                    </div>
+    <!-- Live Probability Trend Chart -->
+    <div class="card" style="min-height:400px; display:flex; flex-direction:column;">
+      <div class="card-title">
+        <span style="font-size:18px;">📉 Live Win Probability Trend</span>
+      </div>
+      <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">
+        Win probability updates in real-time as wickets fall, runs are scored, and required rate pressure changes.
+      </p>
+      <div style="flex:1; position:relative; min-height:240px; width:100%;">
+        <canvas id="probChart"></canvas>
+      </div>
+    </div>
+  </div>
 
-                                    {/* EXTRANEOUS AGENT FEED HUD CARDS */}
-                                    <div>
-                                        <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-3.5 flex items-center gap-2 font-mono">
-                                            <i class="fa-solid fa-microchip text-brandPurple"></i> EXTRANEOUS VARIABLES MODULES
-                                        </h3>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            
-                                            {/* Fatigue Score */}
-                                            <div class="tech-card p-4">
-                                                <div class="flex justify-between items-center mb-2 font-mono">
-                                                    <span class="text-xxs text-zinc-500">Fatigue Factor (T1)</span>
-                                                    <span class={`text-xxs font-bold ${extraneousData.fatigueT1 > 0.6 ? 'text-brandOrange' : 'text-brandGreen'}`}>
-                                                        {extraneousData.fatigueT1 > 0.6 ? 'WARNING' : 'OPTIMAL'}
-                                                    </span>
-                                                </div>
-                                                <div class="text-2xl font-display font-black text-white">{extraneousData.fatigueT1.toFixed(2)}</div>
-                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
-                                                    <div class="bg-brandPurple h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.fatigueT1 * 100}%` }}></div>
-                                                </div>
-                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Travel distance: {extraneousData.travelKm}km</p>
-                                            </div>
+  <div class="grid-2 fade-up">
+    <!-- Live Commentary/Log -->
+    <div class="card" style="display:flex; flex-direction:column; height:340px; overflow:hidden;">
+      <p class="label" style="margin-bottom:12px;">Over Commentary & Match events</p>
+      <div id="pitwall-log-list" style="flex:1; overflow-y:auto; font-size:13px; line-height:1.6; color:var(--text-muted); padding-right:8px;">
+        <div style="color:var(--text-dim); text-align:center; padding-top:110px; font-style:italic;">
+          No simulation running.
+        </div>
+      </div>
+    </div>
 
-                                            {/* Pitch Deterioration */}
-                                            <div class="tech-card p-4">
-                                                <div class="flex justify-between items-center mb-2 font-mono">
-                                                    <span class="text-xxs text-zinc-500">Pitch Deterioration</span>
-                                                    <span class="text-xxs font-bold text-brandOrange">HIGH SPIN</span>
-                                                </div>
-                                                <div class="text-2xl font-display font-black text-white">{extraneousData.pitchDeterioration.toFixed(2)}</div>
-                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
-                                                    <div class="bg-brandOrange h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.pitchDeterioration * 100}%` }}></div>
-                                                </div>
-                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Historical venue crack tracking</p>
-                                            </div>
+    <!-- Live Prediction Drivers -->
+    <div class="card" style="display:flex; flex-direction:column; height:340px; overflow:hidden;">
+      <p class="label" style="margin-bottom:12px;">Live Model Drivers</p>
+      <div id="pitwall-drivers-list" style="flex:1; overflow-y:auto; padding-right:8px; display:flex; flex-direction:column; gap:16px; justify-content:center;">
+        <div style="color:var(--text-dim); text-align:center; font-style:italic;">
+          Drivers will update based on selected over.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-                                            {/* Rest Days */}
-                                            <div class="tech-card p-4">
-                                                <div class="flex justify-between items-center mb-2 font-mono">
-                                                    <span class="text-xxs text-zinc-500">Rest Offset (T1)</span>
-                                                    <span class={`text-xxs font-bold ${extraneousData.restDays < 4 ? 'text-brandOrange' : 'text-brandGreen'}`}>
-                                                        {extraneousData.restDays < 4 ? 'COMPRESSED' : 'STABLE'}
-                                                    </span>
-                                                </div>
-                                                <div class="text-2xl font-display font-black text-white">{extraneousData.restDays} <span class="text-xs text-zinc-500">days</span></div>
-                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
-                                                    <div class="bg-brandTeal h-full rounded-full transition-all duration-500" style={{ width: `${(extraneousData.restDays / 7) * 100}%` }}></div>
-                                                </div>
-                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Impact on physical reload curve</p>
-                                            </div>
 
-                                            {/* Heat Stress */}
-                                            <div class="tech-card p-4">
-                                                <div class="flex justify-between items-center mb-2 font-mono">
-                                                    <span class="text-xxs text-zinc-500">Thermal Stress Score</span>
-                                                    <span class="text-xxs font-bold text-brandPink">ELEVATED</span>
-                                                </div>
-                                                <div class="text-2xl font-display font-black text-white">{extraneousData.heatStress.toFixed(2)}</div>
-                                                <div class="w-full bg-zinc-900 h-1 mt-2.5 rounded-full overflow-hidden">
-                                                    <div class="bg-brandPink h-full rounded-full transition-all duration-500" style={{ width: `${extraneousData.heatStress * 100}%` }}></div>
-                                                </div>
-                                                <p class="text-xxs text-zinc-500 mt-3 font-mono">Measured relative humidity factor</p>
-                                            </div>
-                                        </div>
-                                    </div>
+<!-- ═══════════════════════════════════════════════════════════════════
+     TAB 4 — SYSTEM HEALTH
+     ═══════════════════════════════════════════════════════════════════ -->
+<section id="diagnostics" class="tab-section">
+  <div class="section-header fade-up">
+    <p class="label" style="margin-bottom:12px;">tab 04</p>
+    <h2 class="section-title">System Health</h2>
+    <p class="section-subtitle">Model diagnostics, performance metrics, and infrastructure status for the calibrated XGBoost v8 classifier.</p>
+  </div>
 
-                                    {/* FEATURE DRIVERS LISTING */}
-                                    <div class="tech-card p-6">
-                                        <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-5 font-mono flex items-center gap-2">
-                                            <i class="fa-solid fa-chart-bar text-brandTeal"></i> TOP MODEL FEATURE VALUE INFLUENCES
-                                        </h3>
-                                        <div class="space-y-4">
-                                            {featureDrivers.map((driver, index) => (
-                                                <div key={index} class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                    <span class="text-xs text-zinc-300 font-mono w-60 truncate">{driver.name}</span>
-                                                    <div class="flex-1 flex items-center space-x-3">
-                                                        <div class="flex-1 bg-zinc-900 h-2 rounded overflow-hidden border border-borderClr">
-                                                            <div class={`h-full rounded transition-all duration-500 ${driver.pct > 70 ? 'bg-brandPurple' : driver.pct > 40 ? 'bg-brandTeal' : 'bg-brandOrange'}`}
-                                                                style={{ width: `${driver.pct}%` }}></div>
-                                                        </div>
-                                                        <span class="text-xs text-zinc-400 font-mono w-14 text-right">{driver.score.toFixed(4)}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+  <!-- Model card -->
+  <div class="grid-2 fade-up" style="margin-bottom:24px;">
+    <div class="card">
+      <p class="label" style="margin-bottom:16px;">model card</p>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+        <span style="font-size:32px; font-weight:600; letter-spacing:-0.03em;">XGBoost v8</span>
+        <span class="badge badge-emerald">Production</span>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+        <div>
+          <p class="label">trained</p>
+          <p style="font-size:14px; margin-top:4px;">11 Jun 2026</p>
+        </div>
+        <div>
+          <p class="label">calibration</p>
+          <p style="font-size:14px; margin-top:4px;">Platt Scaling (Sigmoid)</p>
+        </div>
+        <div>
+          <p class="label">features</p>
+          <p style="font-size:14px; margin-top:4px;">44 features · 7 groups</p>
+        </div>
+        <div>
+          <p class="label">label</p>
+          <p style="font-size:14px; margin-top:4px; font-family:var(--mono); font-size:12px;">chasing_team_won</p>
+        </div>
+        <div>
+          <p class="label">sklearn frozen</p>
+          <p style="font-size:14px; margin-top:4px;">FrozenEstimator ✓</p>
+        </div>
+        <div>
+          <p class="label">early stopping</p>
+          <p style="font-size:14px; margin-top:4px;">30 rounds on val logloss</p>
+        </div>
+      </div>
+    </div>
 
-                            {/* ─── VIEW TAB: LIVE PIT-WALL PANEL ───────────────────────────── */}
-                            {activeTab === 'pitwall' && (
-                                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fadeIn">
-                                    
-                                    {/* Real-time Telemetry Trend Graph */}
-                                    <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between">
-                                        <div class="flex justify-between items-center mb-4">
-                                            <div>
-                                                <span class="text-xxs uppercase tracking-widest text-brandTeal font-bold font-mono">LIVE PREDICTION FEED</span>
-                                                <h3 class="text-sm font-bold text-white font-display mt-0.5">OVER-BY-OVER DEVIATION TREND</h3>
-                                            </div>
-                                            <span class="text-xxs bg-zinc-950 text-zinc-400 border border-borderClr px-3 py-1.5 rounded font-mono">
-                                                OVER {currentOver} OF 20
-                                            </span>
-                                        </div>
-                                        <div class="h-80 relative">
-                                            <canvas id="winProbChartReact"></canvas>
-                                        </div>
-                                        <div class="flex justify-between items-center text-xxs font-mono text-zinc-500 mt-4 border-t border-borderClr/55 pt-3">
-                                            <span>X-Axis: Play Progression (Overs)</span>
-                                            <span>Y-Axis: Team 1 Win Probability Baseline %</span>
-                                        </div>
-                                    </div>
+    <div class="card">
+      <p class="label" style="margin-bottom:16px;">hyperparameters</p>
+      <div class="param-grid">
+        <div class="pk">n_estimators</div><div class="pv">500</div>
+        <div class="pk">max_depth</div><div class="pv">3</div>
+        <div class="pk">learning_rate</div><div class="pv">0.02</div>
+        <div class="pk">subsample</div><div class="pv">0.7</div>
+        <div class="pk">colsample_bytree</div><div class="pv">0.7</div>
+        <div class="pk">min_child_weight</div><div class="pv">10</div>
+        <div class="pk">gamma</div><div class="pv">0.2</div>
+        <div class="pk">reg_alpha</div><div class="pv">0.5</div>
+        <div class="pk">reg_lambda</div><div class="pv">2.0</div>
+        <div class="pk">eval_metric</div><div class="pv">logloss</div>
+      </div>
+    </div>
+  </div>
 
-                                    {/* Interactive Signals Feed Panel */}
-                                    <div class="tech-card p-6 flex flex-col justify-between">
-                                        <div>
-                                            <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2 font-mono">
-                                                <i class="fa-solid fa-tower-radar text-brandOrange"></i> ACTIVE PIT-WALL SIGNAL FEED
-                                            </h3>
-                                            <div class="space-y-3.5 max-h-[340px] overflow-y-auto pr-1">
-                                                {tacticalAlerts.map(alert => (
-                                                    <div key={alert.id} class={`p-3.5 rounded border border-borderClr/70 ${alert.type === 'success' ? 'bg-brandTeal/5 border-l-2 border-l-brandTeal' : alert.type === 'warning' ? 'bg-brandOrange/5 border-l-2 border-l-brandOrange' : 'bg-brandPink/5 border-l-2 border-l-brandPink'}`}>
-                                                        <div class="flex justify-between items-center">
-                                                            <span class={`text-xxs font-bold uppercase font-mono ${alert.type === 'success' ? 'text-brandTeal' : alert.type === 'warning' ? 'text-brandOrange' : 'text-brandPink'}`}>{alert.title}</span>
-                                                            <span class="text-xxs text-zinc-500 font-mono">{alert.time}</span>
-                                                        </div>
-                                                        <p class="text-xs text-zinc-400 mt-1.5 leading-relaxed font-mono">{alert.text}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="pt-4 border-t border-borderClr">
-                                            <div class="flex justify-between items-center text-xs font-mono">
-                                                <span class="text-zinc-500">Live Predictor Confidence</span>
-                                                <span class="text-brandGreen bg-brandGreen/10 border border-brandGreen/20 px-2 py-0.5 rounded font-bold">
-                                                    {(0.88 + Math.random() * 0.08).toFixed(3)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+  <!-- Performance metrics -->
+  <p class="label fade-up" style="margin-bottom:16px;">performance metrics</p>
+  <div class="grid-3 fade-up" style="margin-bottom:40px;">
+    <!-- Train -->
+    <div class="card" style="border-top:3px solid var(--blue);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <span style="font-size:15px; font-weight:500;">Train</span>
+        <span class="badge badge-blue">2007–2022</span>
+      </div>
+      <div style="text-align:center; margin-bottom:16px;">
+        <div class="card-value" style="color:var(--blue);">0.8283</div>
+        <div class="metric-label">AUC-ROC</div>
+      </div>
+      <div style="display:flex; justify-content:space-around;">
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">0.2249</div>
+          <div class="metric-label">Brier</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">68.97%</div>
+          <div class="metric-label">Accuracy</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--text-dim); text-align:center;">n = 3,800</div>
+    </div>
 
-                            {/* ─── VIEW TAB: TACTICAL NARRATIVE ────────────────────────────── */}
-                            {activeTab === 'narrative' && (
-                                <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 animate-fadeIn">
-                                    
-                                    {/* AI generated Narrative output column */}
-                                    <div class="xl:col-span-2 tech-card p-6 flex flex-col justify-between space-y-6">
-                                        <div>
-                                            <div class="flex justify-between items-center border-b border-borderClr pb-4 mb-4">
-                                                <div>
-                                                    <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">LLAMA-3.3-70B-VERSATILE ON GROQ LPU</span>
-                                                    <h3 class="text-sm font-bold text-white font-display mt-0.5">TACTICAL AGENT BRIEF</h3>
-                                                </div>
-                                                <span class="text-xxs font-mono text-zinc-500 italic">STATE SYNCHRONIZED</span>
-                                            </div>
-                                            <div class="text-xs font-mono text-zinc-300 space-y-4 leading-relaxed">
-                                                {narrativeText.map((paragraph, index) => (
-                                                    <p key={index} class="p-3 bg-zinc-950/40 rounded border border-borderClr/40">
-                                                        {paragraph}
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        </div>
+    <!-- Val -->
+    <div class="card" style="border-top:3px solid var(--amber);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <span style="font-size:15px; font-weight:500;">Validation</span>
+        <span class="badge badge-amber">2023</span>
+      </div>
+      <div style="text-align:center; margin-bottom:16px;">
+        <div class="card-value" style="color:var(--amber);">0.5505</div>
+        <div class="metric-label">AUC-ROC</div>
+      </div>
+      <div style="display:flex; justify-content:space-around;">
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">0.2442</div>
+          <div class="metric-label">Brier</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">55.41%</div>
+          <div class="metric-label">Accuracy</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--text-dim); text-align:center;">n = 296</div>
+    </div>
 
-                                        {/* Engine workflow block illustration */}
-                                        <div class="bg-zinc-950 p-4 rounded border border-borderClr">
-                                            <h4 class="text-xxs font-mono font-bold text-zinc-500 mb-3 uppercase tracking-widest">
-                                                LANGGRAPH EXECUTION LOG TRACE
-                                            </h4>
-                                            <div class="grid grid-cols-5 gap-2 text-xxs font-mono text-center">
-                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
-                                                    INGEST <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
-                                                </div>
-                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
-                                                    EXTRAN <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
-                                                </div>
-                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
-                                                    FEATURE <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
-                                                </div>
-                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandGreen font-bold">
-                                                    MODEL <div class="mt-0.5 text-zinc-600 font-normal">OK</div>
-                                                </div>
-                                                <div class="bg-zinc-900 p-2 rounded border border-borderClr text-brandTeal font-bold animate-pulse">
-                                                    NARRATE <div class="mt-0.5 text-zinc-400 font-normal">ACTIVE</div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+    <!-- Test -->
+    <div class="card" style="border-top:3px solid var(--emerald);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <span style="font-size:15px; font-weight:500;">Test</span>
+        <span class="badge badge-emerald">2024–2026</span>
+      </div>
+      <div style="text-align:center; margin-bottom:16px;">
+        <div class="card-value" style="color:var(--emerald);">0.5761</div>
+        <div class="metric-label">AUC-ROC</div>
+      </div>
+      <div style="display:flex; justify-content:space-around;">
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">0.2542</div>
+          <div class="metric-label">Brier</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px; font-weight:500;">49.66%</div>
+          <div class="metric-label">Accuracy</div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--text-dim); text-align:center;">n = 876</div>
+    </div>
+  </div>
 
-                                    {/* Analyst Interactive State Injection Card */}
-                                    <div class="tech-card p-6 bg-zinc-950/40">
-                                        <form onSubmit={applyOverrideNode} class="space-y-6">
-                                            <div>
-                                                <div class="flex items-center space-x-2.5 mb-2">
-                                                    <span class="h-2 w-2 rounded-full bg-brandPink status-live"></span>
-                                                    <h3 class="text-xxs font-bold uppercase tracking-widest text-zinc-400 font-mono">HUMAN INTERVENTION NODE</h3>
-                                                </div>
-                                                <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Inject raw situational details directly into active state weight calculations to adapt real-time models.</p>
-                                            </div>
+  <!-- Top feature importances -->
+  <div class="fade-up" style="margin-bottom:40px;">
+    <p class="label" style="margin-bottom:16px;">top 15 feature importances</p>
+    <div class="card" style="padding:24px;" id="importance-chart">
+      <!-- Filled by JS -->
+    </div>
+  </div>
 
-                                            <div class="space-y-4 font-mono text-xs">
-                                                <div>
-                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Surface Humidity Adjust</label>
-                                                    <select value={overridePitch} onChange={(e) => setOverridePitch(e.target.value)}
-                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple">
-                                                        <option value="none">Baseline / No Change</option>
-                                                        <option value="damp">Heavy Grass / Damp Dampness</option>
-                                                        <option value="cracked">Deep Crack Deterioration</option>
-                                                    </select>
-                                                </div>
+  <!-- API endpoints + data sources -->
+  <div class="grid-2 fade-up" style="margin-bottom:24px;">
+    <div class="card">
+      <p class="label" style="margin-bottom:16px;">api endpoints · FastAPI</p>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="endpoint-method method-post">POST</span>
+          <span class="mono" style="color:var(--text);">/predict</span>
+          <span style="font-size:12px; color:var(--text-dim); margin-left:auto;">Primary prediction</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="endpoint-method method-get">GET</span>
+          <span class="mono" style="color:var(--text);">/health</span>
+          <span style="font-size:12px; color:var(--text-dim); margin-left:auto;">Liveness check</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="endpoint-method method-get">GET</span>
+          <span class="mono" style="color:var(--text);">/model-info</span>
+          <span style="font-size:12px; color:var(--text-dim); margin-left:auto;">Version + metrics</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="endpoint-method method-post">POST</span>
+          <span class="mono" style="color:var(--text);">/drift-check</span>
+          <span style="font-size:12px; color:var(--text-dim); margin-left:auto;">Feature drift detection</span>
+        </div>
+      </div>
+      <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+        <span style="font-size:12px; color:var(--text-dim);">Base URL: <span class="mono">http://localhost:8001</span> · Docs: <span class="mono">/docs</span></span>
+      </div>
+    </div>
 
-                                                <div>
-                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Player Physical State</label>
-                                                    <select value={overrideInjury} onChange={(e) => setOverrideInjury(e.target.value)}
-                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple">
-                                                        <option value="none">Normal Load Status</option>
-                                                        <option value="mild-injury">Opening Bowler Carrying Minor Niggle</option>
-                                                        <option value="heat-fatigue">Extreme Top-Order Heat Fatigue</option>
-                                                    </select>
-                                                </div>
+    <div class="card">
+      <p class="label" style="margin-bottom:16px;">data sources</p>
+      <div class="source-row">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-dot status-ok"></span>
+          <span style="font-size:14px;">Cricsheet Ball-by-Ball</span>
+        </div>
+        <span style="font-size:12px; color:var(--text-dim);">ipl.duckdb · 5.8 MB</span>
+      </div>
+      <div class="source-row">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-dot status-ok"></span>
+          <span style="font-size:14px;">Historical Weather</span>
+        </div>
+        <span style="font-size:12px; color:var(--text-dim);">weather_by_match.parquet · 66 KB</span>
+      </div>
+      <div class="source-row">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-dot status-ok"></span>
+          <span style="font-size:14px;">Team Schedules</span>
+        </div>
+        <span style="font-size:12px; color:var(--text-dim);">team_schedule.parquet · 45 KB</span>
+      </div>
+      <div class="source-row">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-dot status-ok"></span>
+          <span style="font-size:14px;">Player Profiles</span>
+        </div>
+        <span style="font-size:12px; color:var(--text-dim);">batting + bowling + venue · 272 KB</span>
+      </div>
+      <div class="source-row">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-dot status-live"></span>
+          <span style="font-size:14px;">Match-Day Forecast</span>
+        </div>
+        <span style="font-size:12px; color:var(--text-dim);">Open-Meteo API · Live</span>
+      </div>
+    </div>
+  </div>
 
-                                                <div>
-                                                    <label class="block text-xxs font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Custom Context Prompt</label>
-                                                    <textarea value={overrideCustom} onChange={(e) => setOverrideCustom(e.target.value)}
-                                                        placeholder="e.g. Tactical substitution expected for spinner at Over 14."
-                                                        class="w-full bg-zinc-950 border border-borderClr rounded p-2.5 text-xxs text-zinc-300 focus:outline-none focus:border-brandPurple h-20 placeholder:text-zinc-700 resize-none"></textarea>
-                                                </div>
-                                            </div>
+  <!-- Temporal splits timeline -->
+  <div class="fade-up" style="margin-bottom:24px;">
+    <p class="label" style="margin-bottom:16px;">temporal train / val / test split</p>
+    <div class="card" style="padding:28px 28px 20px;">
+      <div style="display:flex; height:32px; border-radius:8px; overflow:hidden; margin-bottom:12px;">
+        <div style="flex:14; background:var(--blue); display:flex; align-items:center; justify-content:center;">
+          <span style="font-size:11px; font-weight:600;">TRAIN</span>
+        </div>
+        <div style="flex:1; background:var(--amber); display:flex; align-items:center; justify-content:center;">
+          <span style="font-size:10px; font-weight:600;">VAL</span>
+        </div>
+        <div style="flex:3; background:var(--emerald); display:flex; align-items:center; justify-content:center;">
+          <span style="font-size:11px; font-weight:600;">TEST</span>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim);">
+        <span>2007</span>
+        <span>2009</span>
+        <span>2011</span>
+        <span>2013</span>
+        <span>2015</span>
+        <span>2017</span>
+        <span>2019</span>
+        <span>2021</span>
+        <span style="color:var(--amber);">2023</span>
+        <span style="color:var(--emerald);">2024</span>
+        <span style="color:var(--emerald);">2026</span>
+      </div>
+      <p style="font-size:12px; color:var(--text-dim); margin-top:12px;">Strict temporal splitting prevents data leakage. Rolling features use shift(1) to exclude current match. Player features use previous season only.</p>
+    </div>
+  </div>
 
-                                            <button type="submit"
-                                                class="w-full bg-brandPink text-darkBg hover:bg-brandPink/90 text-xxs font-bold py-3 px-4 rounded transition flex justify-center items-center gap-1.5 font-display uppercase tracking-wider">
-                                                <i class="fa-solid fa-code-merge"></i> INJECT OVERRIDE STATE
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            )}
+</section>
 
-                            {/* ─── VIEW TAB: SYSTEM MONITOR (DIAGNOSTICS) ─────────────────── */}
-                            {activeTab === 'diagnostics' && (
-                                <div class="space-y-6 animate-fadeIn">
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        
-                                        {/* Validation Gate */}
-                                        <div class="tech-card p-5 space-y-4">
-                                            <div class="flex justify-between items-start">
-                                                <span class="text-xxs uppercase tracking-widest text-brandTeal font-bold font-mono">DATA VALIDATION SCHEMA</span>
-                                                <span class="bg-brandGreen/15 text-brandGreen text-xxs font-bold px-2 py-0.5 rounded border border-brandGreen/20 font-mono">PASS</span>
-                                            </div>
-                                            <div class="space-y-2.5 text-xxs font-mono">
-                                                <div class="flex justify-between border-b border-borderClr/60 pb-2">
-                                                    <span class="text-zinc-500">NULL CHECK COMPLIANCE</span>
-                                                    <span class="text-brandGreen">0 NULL_RECORDS</span>
-                                                </div>
-                                                <div class="flex justify-between border-b border-borderClr/60 pb-2">
-                                                    <span class="text-zinc-500">TIMEZONE NORMALIZATION</span>
-                                                    <span class="text-zinc-400">Asia/Kolkata</span>
-                                                </div>
-                                                <div class="flex justify-between">
-                                                    <span class="text-zinc-500">SCHEMA CONFORMANCE</span>
-                                                    <span class="text-brandGreen">MATCH_STANDARD</span>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        {/* Feature Drift Monitor */}
-                                        <div class="tech-card p-5 space-y-4">
-                                            <div class="flex justify-between items-start">
-                                                <span class="text-xxs uppercase tracking-widest text-brandPurple font-bold font-mono">FEATURE DRIFT DETECTOR</span>
-                                                <span class={`text-xxs font-bold px-2 py-0.5 rounded border font-mono ${driftScore > 0.2 ? 'bg-brandOrange/15 text-brandOrange border-brandOrange/20' : 'bg-brandGreen/15 text-brandGreen border-brandGreen/20'}`}>
-                                                    {driftScore > 0.2 ? 'ALERT' : 'STABLE'}
-                                                </span>
-                                            </div>
-                                            <div class="flex items-end space-x-3.5 font-mono">
-                                                <div class="text-3xl font-display font-black text-white">{driftScore.toFixed(2)}</div>
-                                                <div class="pb-1">
-                                                    <div class="text-xxs text-zinc-500 uppercase">PSI Score Index</div>
-                                                    <div class="text-xxs text-zinc-600">Retrain trigger: &gt; 0.25</div>
-                                                </div>
-                                            </div>
-                                            <div class="w-full bg-zinc-900 h-2 rounded overflow-hidden">
-                                                <div class="bg-brandPurple h-full rounded transition-all duration-500" style={{ width: `${(driftScore / 0.3) * 100}%` }}></div>
-                                            </div>
-                                        </div>
+<!-- ═══════════════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════════════ -->
+<footer style="padding:40px clamp(24px,5vw,80px); border-top:1px solid var(--border); text-align:center;">
+  <p style="font-size:13px; color:var(--text-dim);">
+    IPL Intelligence Platform · Multi-Agent LangGraph System · XGBoost v8 + Platt Calibration · 44 Features · 17 Seasons
+  </p>
+</footer>
 
-                                        {/* Live weather outage simulator toggle */}
-                                        <div class="tech-card p-5 space-y-4">
-                                            <div class="flex justify-between items-start">
-                                                <span class="text-xxs uppercase tracking-widest text-brandOrange font-bold font-mono">API OUTAGE EMULATOR</span>
-                                                <span class={`text-xxs font-bold px-2 py-0.5 rounded border font-mono ${weatherApiOnline ? 'bg-brandGreen/15 text-brandGreen border-brandGreen/20' : 'bg-brandOrange/15 text-brandOrange border-brandOrange/20'}`}>
-                                                    {weatherApiOnline ? 'INACTIVE' : 'DEGRADED'}
-                                                </span>
-                                            </div>
-                                            <p class="text-xxs text-zinc-500 leading-relaxed font-mono">Emulate physical weather API loss to inspect local microclimate fallback state handler performance.</p>
-                                            <button onClick={toggleWeatherStatus}
-                                                class={`w-full py-2 px-3 rounded font-mono text-xxs font-bold border transition ${weatherApiOnline ? 'bg-zinc-900 border-borderClr hover:bg-zinc-850 text-zinc-400' : 'bg-brandOrange/10 border-brandOrange/30 text-brandOrange hover:bg-brandOrange/15'}`}>
-                                                {weatherApiOnline ? "MOCK TELEMETRY CONNECTION LOSS" : "RE-CONNECT LIVE WEATHER PLUG"}
-                                            </button>
-                                        </div>
-                                    </div>
 
-                                    {/* POST-MATCH FEEDBACK ENGINE LOGGING */}
-                                    <div class="tech-card p-6">
-                                        <div class="flex justify-between items-center border-b border-borderClr pb-4 mb-4">
-                                            <div>
-                                                <span class="text-xxs uppercase tracking-widest text-brandGreen font-bold font-mono">OUTPUT PERSISTENCE DATABASE</span>
-                                                <h3 class="text-sm font-bold text-white font-display mt-0.5">FEEDBACK CONTROL LOOP</h3>
-                                            </div>
-                                            <span class="text-xxs font-mono text-zinc-500">RETRAINING QUEUE ENGINE</span>
-                                        </div>
-                                        <div class="overflow-x-auto">
-                                            <table class="w-full text-left text-xxs text-zinc-400 font-mono">
-                                                <thead>
-                                                    <tr class="text-zinc-600 border-b border-borderClr">
-                                                        <th class="py-2 font-bold uppercase">Match Code ID</th>
-                                                        <th class="py-2 font-bold uppercase">Telemetry Hash</th>
-                                                        <th class="py-2 font-bold uppercase">Predicted Edge</th>
-                                                        <th class="py-2 font-bold uppercase">Real Outcome</th>
-                                                        <th class="py-2 font-bold uppercase">Brier Variance</th>
-                                                        <th class="py-2 font-bold uppercase">Retraining Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody class="divide-y divide-borderClr/60">
-                                                    <tr class="hover:bg-zinc-900/30">
-                                                        <td class="py-3 text-white font-bold">#IPL-2025-001</td>
-                                                        <td class="py-3 text-zinc-600">f9a12c0a9...</td>
-                                                        <td class="py-3 text-brandTeal">MI 54.0%</td>
-                                                        <td class="py-3 text-brandGreen">MI won by 6 wickets</td>
-                                                        <td class="py-3 text-brandGreen">0.02</td>
-                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
-                                                    </tr>
-                                                    <tr class="hover:bg-zinc-900/30">
-                                                        <td class="py-3 text-white font-bold">#IPL-2025-002</td>
-                                                        <td class="py-3 text-zinc-600">c87dfa19b...</td>
-                                                        <td class="py-3 text-brandTeal">RCB 48.0%</td>
-                                                        <td class="py-3 text-brandOrange">LSG won by 3 wickets</td>
-                                                        <td class="py-3 text-brandOrange">0.09</td>
-                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
-                                                    </tr>
-                                                    <tr class="hover:bg-zinc-900/30">
-                                                        <td class="py-3 text-white font-bold">#IPL-2025-003</td>
-                                                        <td class="py-3 text-zinc-600">a23bc5e56...</td>
-                                                        <td class="py-3 text-brandTeal">CSK 61.0%</td>
-                                                        <td class="py-3 text-brandGreen">CSK won by 9 runs</td>
-                                                        <td class="py-3 text-brandGreen">0.04</td>
-                                                        <td class="py-3 text-zinc-500">Scheduled — season wrap</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+<!-- ═══════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════ -->
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// ── FEATURE DATA (from feature_schema.yaml) ─────────────────────────
+const FEATURES = [
+  { name:'toss_winner_is_team1',       group:'match_context',   source:'cricsheet',       dtype:'int8',    fillna:'0',      desc:'Whether the team batting first won the toss' },
+  { name:'toss_decision_bat',          group:'match_context',   source:'cricsheet',       dtype:'int8',    fillna:'0',      desc:'Toss decision — bat (1) or field (0)' },
+  { name:'is_day_match',               group:'match_context',   source:'cricsheet',       dtype:'int8',    fillna:'0',      desc:'Day match flag — night matches carry dew risk' },
+  { name:'season_stage',               group:'match_context',   source:'cricsheet',       dtype:'int8',    fillna:'0',      desc:'Stage of tournament — knockout pressure affects outcomes' },
+  { name:'match_number_in_season',     group:'match_context',   source:'schedule',        dtype:'int16',   fillna:'1',      desc:'Sequential match number in season' },
+  { name:'venue_encoded',              group:'venue',           source:'cricsheet',       dtype:'int16',   fillna:'-1',     desc:'Venue identifier — ground-specific tendencies' },
+  { name:'team1_home_flag',            group:'venue',           source:'schedule',        dtype:'int8',    fillna:'0',      desc:'Team batting first playing at home ground' },
+  { name:'team2_home_flag',            group:'venue',           source:'schedule',        dtype:'int8',    fillna:'0',      desc:'Team batting second playing at home ground' },
+  { name:'venue_avg_first_innings_score', group:'venue',        source:'cricsheet',       dtype:'float32', fillna:'165.0',  desc:'Historical avg first innings score at venue' },
+  { name:'venue_chasing_win_rate',     group:'venue',           source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Historical chasing win rate at venue' },
+  { name:'venue_avg_powerplay_score',  group:'venue',           source:'cricsheet',       dtype:'float32', fillna:'48.0',   desc:'Historical avg powerplay (overs 1-6) score' },
+  { name:'dew_risk_flag',              group:'environmental',   source:'weather',         dtype:'int8',    fillna:'0',      desc:'Binary dew risk — favours chasing team' },
+  { name:'temp_night_avg',             group:'environmental',   source:'weather',         dtype:'float32', fillna:'27.0',   desc:'Avg temperature during match hours' },
+  { name:'humidity_night_avg',         group:'environmental',   source:'weather',         dtype:'float32', fillna:'65.0',   desc:'Avg humidity during match hours' },
+  { name:'dewpoint_night_avg',         group:'environmental',   source:'weather',         dtype:'float32', fillna:'18.0',   desc:'Avg dewpoint — direct dew risk indicator' },
+  { name:'windspeed_night_avg',        group:'environmental',   source:'weather',         dtype:'float32', fillna:'10.0',   desc:'Avg wind speed — affects lofted shots & swing' },
+  { name:'pressure_night_avg',         group:'environmental',   source:'weather',         dtype:'float32', fillna:'1010.0', desc:'Atmospheric pressure — lower at altitude increases six distance' },
+  { name:'precipitation_mm',           group:'environmental',   source:'weather',         dtype:'float32', fillna:'0.0',    desc:'Match day precipitation — affects pitch & outfield' },
+  { name:'team1_rest_days',            group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'7',      desc:'Rest days since last match (team 1)' },
+  { name:'team2_rest_days',            group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'7',      desc:'Rest days since last match (team 2)' },
+  { name:'team1_back_to_back',         group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'0',      desc:'Team 1 played yesterday (<2 days rest)' },
+  { name:'team2_back_to_back',         group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'0',      desc:'Team 2 played yesterday (<2 days rest)' },
+  { name:'team1_travel_km',            group:'fatigue',         source:'schedule',        dtype:'float32', fillna:'0.0',    desc:'Distance travelled by team 1 to this match' },
+  { name:'team2_travel_km',            group:'fatigue',         source:'schedule',        dtype:'float32', fillna:'0.0',    desc:'Distance travelled by team 2 to this match' },
+  { name:'team1_travel_burden',        group:'fatigue',         source:'schedule',        dtype:'float32', fillna:'0.0',    desc:'Composite fatigue score for team 1' },
+  { name:'team2_travel_burden',        group:'fatigue',         source:'schedule',        dtype:'float32', fillna:'0.0',    desc:'Composite fatigue score for team 2' },
+  { name:'team1_season_match_num',     group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'1',      desc:'Matches played by team 1 this season' },
+  { name:'team2_season_match_num',     group:'fatigue',         source:'schedule',        dtype:'int8',    fillna:'1',      desc:'Matches played by team 2 this season' },
+  { name:'team1_win_rate_last5',       group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Team 1 win rate in last 5 matches' },
+  { name:'team2_win_rate_last5',       group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Team 2 win rate in last 5 matches' },
+  { name:'team1_avg_score_last5',      group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'160.0',  desc:'Team 1 avg score in last 5 matches' },
+  { name:'team2_avg_score_last5',      group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'160.0',  desc:'Team 2 avg score in last 5 matches' },
+  { name:'team1_avg_conceded_last5',   group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'160.0',  desc:'Team 1 avg runs conceded in last 5' },
+  { name:'team2_avg_conceded_last5',   group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'160.0',  desc:'Team 2 avg runs conceded in last 5' },
+  { name:'team1_chasing_win_rate',     group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Team 1 historical chasing win rate' },
+  { name:'team2_chasing_win_rate',     group:'team_form',       source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Team 2 historical chasing win rate' },
+  { name:'team1_top4_avg_sr',          group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'130.0',  desc:'Avg strike rate of team 1 top 4 batters' },
+  { name:'team2_top4_avg_sr',          group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'130.0',  desc:'Avg strike rate of team 2 top 4 batters' },
+  { name:'team1_bowling_avg_economy',  group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'8.5',    desc:'Avg economy of team 1 top 4 bowlers' },
+  { name:'team2_bowling_avg_economy',  group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'8.5',    desc:'Avg economy of team 2 top 4 bowlers' },
+  { name:'team1_bowling_avg_economy_death', group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'9.5', desc:'Team 1 death-over bowling economy' },
+  { name:'team2_bowling_avg_economy_death', group:'player_strength', source:'player_profiles', dtype:'float32', fillna:'9.5', desc:'Team 2 death-over bowling economy' },
+  { name:'pitch_deterioration_index',  group:'pitch',           source:'cricsheet',       dtype:'float32', fillna:'0.5',    desc:'Expected pitch deterioration — favours bowling in 2nd innings' },
+  { name:'venue_spin_factor',          group:'pitch',           source:'cricsheet',       dtype:'float32', fillna:'0.35',   desc:'How spin-friendly the venue is' },
+];
 
-                        </main>
-                    </div>
+const GROUP_COLORS = {
+  match_context:'var(--rose)', venue:'var(--blue)', environmental:'var(--cyan)',
+  fatigue:'var(--amber)', team_form:'var(--emerald)', player_strength:'var(--purple)',
+  pitch:'var(--text-muted)',
+};
 
-                    {/* ─── SYSTEM FOOTER STATUS ─────────────────────────────────────────── */}
-                    <footer class="bg-cardBg border-t border-borderClr px-6 py-3 flex flex-col sm:flex-row justify-between items-center text-xxs font-mono text-zinc-500 gap-2">
-                        <div class="flex items-center space-x-2">
-                            <span class="status-live h-1.5 w-1.5 rounded-full bg-brandTeal"></span>
-                            <span>DECISION-CHAIN ACTIVE // PORT: 8000</span>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <span>GRID_X: 18.2917 | GRID_Y: 73.8206</span>
-                            <span>LATENCY: 12ms</span>
-                            <span>© 2026 CRICKET_COG_SYSTEMS</span>
-                        </div>
-                    </footer>
+// ── RENDER FEATURE TABLE ────────────────────────────────────────────
+function renderFeatureTable(filter) {
+  const tbody = document.getElementById('feat-tbody');
+  const data = filter === 'all' ? FEATURES : FEATURES.filter(f => f.group === filter);
+  tbody.innerHTML = data.map((f, i) => `
+    <tr>
+      <td style="color:var(--text-dim);">${FEATURES.indexOf(f) + 1}</td>
+      <td class="feat-name">${f.name}</td>
+      <td><span class="badge" style="background:${GROUP_COLORS[f.group]}20; color:${GROUP_COLORS[f.group]};">${f.group.replace('_',' ')}</span></td>
+      <td>${f.source}</td>
+      <td class="mono">${f.dtype}</td>
+      <td class="mono">${f.fillna}</td>
+      <td>${f.desc}</td>
+    </tr>
+  `).join('');
+}
 
-                </div>
-            );
+function showGroup(group) {
+  document.querySelectorAll('.fg-pill').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  renderFeatureTable(group);
+}
+
+renderFeatureTable('all');
+
+
+// ── RENDER FEATURE IMPORTANCES (diagnostics) ────────────────────────
+const TOP_15 = [
+  { feature:'venue_chasing_win_rate',          importance:0.0462 },
+  { feature:'team2_avg_conceded_last5',        importance:0.0399 },
+  { feature:'team1_home_flag',                 importance:0.0353 },
+  { feature:'venue_spin_factor',               importance:0.0352 },
+  { feature:'dewpoint_night_avg',              importance:0.0343 },
+  { feature:'team1_avg_conceded_last5',        importance:0.0326 },
+  { feature:'team2_win_rate_last5',            importance:0.0316 },
+  { feature:'team1_win_rate_last5',            importance:0.0315 },
+  { feature:'humidity_night_avg',              importance:0.0315 },
+  { feature:'team1_avg_score_last5',           importance:0.0313 },
+  { feature:'team1_bowling_avg_economy_death', importance:0.0313 },
+  { feature:'pressure_night_avg',              importance:0.0307 },
+  { feature:'team1_bowling_avg_economy',       importance:0.0306 },
+  { feature:'team1_chasing_win_rate',          importance:0.0306 },
+  { feature:'team2_chasing_win_rate',          importance:0.0304 },
+];
+
+const impChart = document.getElementById('importance-chart');
+const maxVal = TOP_15[0].importance;
+impChart.innerHTML = TOP_15.map((f, i) => `
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+    <span class="mono" style="width:280px; flex-shrink:0; font-size:11px; color:${i < 5 ? 'var(--text)' : 'var(--text-muted)'}; text-align:right;">${f.feature}</span>
+    <div class="bar-track" style="flex:1;">
+      <div class="bar-fill" style="background:${i < 5 ? 'linear-gradient(90deg, var(--blue), var(--cyan))' : 'rgba(255,255,255,0.15)'}; --w:${(f.importance / maxVal * 100)}%;"></div>
+    </div>
+    <span class="mono" style="width:60px; flex-shrink:0; font-size:11px; color:var(--text-dim);">${f.importance.toFixed(4)}</span>
+  </div>
+`).join('');
+
+
+// ── INTERSECTION OBSERVER — fade-up + animate bars ──────────────────
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      // Animate bars inside
+      entry.target.querySelectorAll('.bar-fill').forEach(bar => {
+        setTimeout(() => bar.classList.add('animated'), 200);
+      });
+      // Animate gauge
+      entry.target.querySelectorAll('.gauge-fill').forEach(g => {
+        setTimeout(() => g.classList.add('animated'), 300);
+      });
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+
+// ── NAV ACTIVE STATE ────────────────────────────────────────────────
+const sections = ['prematch', 'explainable', 'pitwall', 'diagnostics'];
+const navLinks = document.querySelectorAll('.nav-link[data-section]');
+const navSlider = document.getElementById('nav-slider');
+const navCenter = document.getElementById('nav-center');
+
+function moveSlider(activeLink) {
+  if (!activeLink || !navSlider) return;
+  const containerRect = navCenter.getBoundingClientRect();
+  const linkRect = activeLink.getBoundingClientRect();
+  const offsetLeft = linkRect.left - containerRect.left;
+  navSlider.style.width = linkRect.width + 'px';
+  navSlider.style.transform = `translateX(${offsetLeft}px)`;
+  navSlider.classList.add('visible');
+}
+
+function clearSlider() {
+  navSlider.classList.remove('visible');
+}
+
+const sectionObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navLinks.forEach(link => {
+        const isActive = link.dataset.section === id;
+        link.classList.toggle('active', isActive);
+        if (isActive) moveSlider(link);
+      });
+    }
+  });
+}, { threshold: 0.15, rootMargin: '-80px 0px -40% 0px' });
+
+sections.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) sectionObserver.observe(el);
+});
+
+// Also observe the hero section to hide slider when at top
+const heroObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(link => link.classList.remove('active'));
+      clearSlider();
+    }
+  });
+}, { threshold: 0.3 });
+heroObserver.observe(document.getElementById('hero'));
+
+// Recalculate slider on resize
+window.addEventListener('resize', () => {
+  const active = document.querySelector('.nav-link.active');
+  if (active) moveSlider(active);
+});
+
+
+// ── NAVBAR BACKGROUND ON SCROLL ─────────────────────────────────────
+const nav = document.getElementById('main-nav');
+window.addEventListener('scroll', () => {
+  if (window.scrollY > 100) {
+    nav.style.background = 'rgba(0,0,0,0.85)';
+    nav.style.backdropFilter = 'blur(20px)';
+  } else {
+    nav.style.background = 'transparent';
+    nav.style.backdropFilter = 'none';
+  }
+});
+
+
+// ── RESPONSIVE NAV ──────────────────────────────────────────────────
+function handleResize() {
+  const center = document.getElementById('nav-center');
+  center.style.display = window.innerWidth < 768 ? 'none' : 'flex';
+}
+handleResize();
+window.addEventListener('resize', handleResize);
+
+
+// ── API INTEGRATION ──────────────────────────────────────────────────
+
+async function fetchModelInfo() {
+  try {
+    const res = await fetch('http://localhost:8001/model-info');
+    const data = await res.json();
+    document.getElementById('sh-model-version').innerText = data.model_version;
+    document.getElementById('sh-trained-at').innerText = data.trained_at;
+    if (data.val_metrics) {
+      document.getElementById('sh-auc').innerText = data.val_metrics.roc_auc.toFixed(3);
+      document.getElementById('sh-brier').innerText = data.val_metrics.brier_score.toFixed(3);
+      document.getElementById('sh-acc').innerText = (data.val_metrics.accuracy * 100).toFixed(1) + '%';
+    }
+  } catch(e) {
+    console.error("Failed to fetch model info", e);
+  }
+}
+
+
+let scheduleData = [];
+let currentMatchId = null;
+
+async function fetchSchedule() {
+  try {
+    const res = await fetch('http://localhost:8001/schedule/2026');
+    const data = await res.json();
+    scheduleData = data.matches || [];
+    
+    const dropdown = document.getElementById('schedule-dropdown');
+    dropdown.innerHTML = '<option value="">-- Select a 2026 Match --</option>';
+    
+    scheduleData.forEach((m, idx) => {
+      const opt = document.createElement('option');
+      opt.value = m.match_id;
+      opt.innerText = `Match ${idx+1}: ${m.team1} vs ${m.team2} (${m.venue} - ${m.date})`;
+      dropdown.appendChild(opt);
+    });
+  } catch(e) {
+    console.error("Failed to fetch schedule", e);
+  }
+}
+
+document.getElementById('schedule-dropdown').addEventListener('change', (e) => {
+  const matchId = e.target.value;
+  const povDropdown = document.getElementById('pov-team-dropdown');
+  if (!matchId) {
+    povDropdown.innerHTML = '<option value="">Select match first</option>';
+    povDropdown.disabled = true;
+    return;
+  }
+  const matchInfo = scheduleData.find(m => m.match_id === matchId);
+  if (matchInfo) {
+    povDropdown.innerHTML = `
+      <option value="${matchInfo.team1}">${matchInfo.team1}</option>
+      <option value="${matchInfo.team2}">${matchInfo.team2}</option>
+    `;
+    povDropdown.disabled = false;
+  }
+});
+
+// ── SIMULATION & CHART GLOBALS ────────────────────────────────────────
+let envChartInstance = null;
+let probChartInstance = null;
+let simulatedOversData = [];
+let currentSimOver = 0;
+let playInterval = null;
+
+// Initialize Chart.js Instances
+function initCharts() {
+  const gridOptions = {
+    color: 'rgba(255, 255, 255, 0.04)',
+    drawBorder: false
+  };
+  const titleFontOptions = {
+    family: "'Readex Pro', sans-serif",
+    size: 11,
+    weight: '500'
+  };
+  const labelFontOptions = {
+    family: "'JetBrains Mono', monospace",
+    size: 9
+  };
+
+  // 1. Environmental Curves Chart
+  const envCtx = document.getElementById('envChart').getContext('2d');
+  envChartInstance = new Chart(envCtx, {
+    type: 'line',
+    data: {
+      labels: Array.from({length: 21}, (_, i) => `Over ${i}`),
+      datasets: [
+        {
+          label: 'Dew Risk (%)',
+          data: [],
+          borderColor: '#3B82F6',
+          backgroundColor: 'rgba(59, 130, 246, 0.03)',
+          borderWidth: 2,
+          tension: 0.35,
+          fill: true,
+          yAxisID: 'yDew'
+        },
+        {
+          label: 'Pitch Deterioration',
+          data: [],
+          borderColor: '#A855F7',
+          backgroundColor: 'rgba(168, 85, 247, 0.03)',
+          borderWidth: 2,
+          tension: 0.2,
+          fill: true,
+          yAxisID: 'yPitch'
         }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: 'rgba(255, 255, 255, 0.7)', font: titleFontOptions }
+        },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: {
+          grid: gridOptions,
+          ticks: { color: 'rgba(255, 255, 255, 0.4)', font: labelFontOptions }
+        },
+        yDew: {
+          type: 'linear',
+          position: 'left',
+          min: 0,
+          max: 100,
+          grid: gridOptions,
+          ticks: {
+            color: '#3B82F6',
+            font: labelFontOptions,
+            callback: (v) => `${v}%`
+          },
+          title: { display: true, text: 'Dew Risk', color: '#3B82F6', font: titleFontOptions }
+        },
+        yPitch: {
+          type: 'linear',
+          position: 'right',
+          min: 0.0,
+          max: 1.0,
+          grid: { display: false },
+          ticks: {
+            color: '#A855F7',
+            font: labelFontOptions,
+            callback: (v) => v.toFixed(1)
+          },
+          title: { display: true, text: 'Pitch Wear', color: '#A855F7', font: titleFontOptions }
+        }
+      }
+    }
+  });
 
-        // Mount the React Application
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+  // 2. Win Probability Progression Chart
+  const probCtx = document.getElementById('probChart').getContext('2d');
+  probChartInstance = new Chart(probCtx, {
+    type: 'line',
+    data: {
+      labels: Array.from({length: 21}, (_, i) => `Over ${i}`),
+      datasets: [{
+        label: 'Chasing Win Probability',
+        data: [],
+        borderColor: '#F59E0B',
+        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+        borderWidth: 3,
+        tension: 0.35,
+        fill: true,
+        pointBackgroundColor: '#F59E0B',
+        pointRadius: (ctx) => (ctx.dataIndex === currentSimOver ? 6 : 2),
+        pointHoverRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (context) => `Win Prob: ${context.parsed.y.toFixed(1)}%`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: gridOptions,
+          ticks: { color: 'rgba(255, 255, 255, 0.4)', font: labelFontOptions }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          grid: gridOptions,
+          ticks: {
+            color: 'rgba(255, 255, 255, 0.4)',
+            font: labelFontOptions,
+            callback: (v) => `${v}%`
+          }
+        }
+      }
+    }
+  });
+}
+
+// Update Explainable Curves
+function updateExplainableCharts(state) {
+  if (!envChartInstance) return;
+
+  const isNight = state.is_night_match;
+  const dewRisk = state.ext_scores ? (state.ext_scores.dew_risk_score || 0.15) : 0.15;
+  const pitchIndex = state.ext_scores ? (state.ext_scores.pitch_deterioration_index || 0.50) : 0.50;
+
+  const dewData = [];
+  const pitchData = [];
+
+  for (let o = 0; o <= 20; o++) {
+    let overDew = 0;
+    if (isNight) {
+      overDew = Math.round(8 + (dewRisk * 92) * Math.pow(o / 20, 1.4));
+    } else {
+      overDew = Math.round(2 + Math.random() * 3);
+    }
+    dewData.push(overDew);
+
+    let overPitch = 1.0 - (pitchIndex * 0.55) * (o / 20);
+    pitchData.push(overPitch);
+  }
+
+  envChartInstance.data.datasets[0].data = dewData;
+  envChartInstance.data.datasets[1].data = pitchData;
+  envChartInstance.update();
+
+  document.getElementById('xai-env-status').innerText = isNight ? "Night Match (Dew Risk Active)" : "Day Match (Outfield Dry)";
+  document.getElementById('xai-env-status').className = isNight ? "badge badge-blue" : "badge badge-amber";
+
+  document.getElementById('xai-pdi-label').innerText = pitchIndex.toFixed(2);
+  document.getElementById('xai-pdi-label').className = pitchIndex > 0.6 ? "badge badge-rose" : (pitchIndex > 0.4 ? "badge badge-amber" : "badge badge-emerald");
+  document.getElementById('xai-pdi-desc').innerText = `PDI of ${pitchIndex.toFixed(2)} indicates ${pitchIndex > 0.6 ? "rapid pitch decay (favors spin, bat-first preferable)" : (pitchIndex > 0.4 ? "moderate wear (balanced wicket properties)" : "minimal wear (hard, flat surface)")}.`;
+  document.getElementById('xai-pdi-bar').style.setProperty('--w', `${pitchIndex * 100}%`);
+  document.getElementById('xai-pdi-bar').classList.add('animated');
+
+  document.getElementById('xai-dew-label').innerText = dewRisk.toFixed(2);
+  document.getElementById('xai-dew-label').className = dewRisk > 0.6 ? "badge badge-rose" : (dewRisk > 0.3 ? "badge badge-amber" : "badge badge-emerald");
+  document.getElementById('xai-dew-desc').innerText = `Dew risk coefficient of ${dewRisk.toFixed(2)} forecasts ${dewRisk > 0.6 ? "excessive dew (grip issues, bowl first critical)" : (dewRisk > 0.3 ? "mild dew (marginal advantage to second innings)" : "no dew (ball retains grip, dry outfield)")}.`;
+  document.getElementById('xai-dew-bar').style.setProperty('--w', `${dewRisk * 100}%`);
+  document.getElementById('xai-dew-bar').classList.add('animated');
+
+  const spinFactor = state.feature_vector ? state.feature_vector[43] : 0.35;
+  const spinVal = spinFactor || 0.35;
+  document.getElementById('xai-spin-label').innerText = spinVal.toFixed(2);
+  document.getElementById('xai-spin-label').className = spinVal > 0.45 ? "badge badge-rose" : (spinVal > 0.3 ? "badge badge-amber" : "badge badge-emerald");
+  document.getElementById('xai-spin-desc').innerText = `Venue spin factor is ${spinVal.toFixed(2)}, making spinners ${spinVal > 0.45 ? "highly effective (recommend spinner-heavy squad)" : (spinVal > 0.3 ? "moderately useful (standard tactical roster)" : "ineffective (recommend pace/depth roster)")}.`;
+  document.getElementById('xai-spin-bar').style.setProperty('--w', `${spinVal * 100}%`);
+  document.getElementById('xai-spin-bar').classList.add('animated');
+}
+
+// Update Explainable Squad Optimization
+function updateExplainableSquad(state, intel) {
+  document.getElementById('xai-squad-text').innerHTML = `
+    <strong>Target Team:</strong> ${state.pov_team || state.team2}<br>
+    <strong>Recommended Adjustments:</strong> ${intel.squad_tweaks || "No adjustments suggested — starting XI is highly optimized for this venue and weather condition."}
+  `;
+
+  const tweaksText = (intel.squad_tweaks || "").toLowerCase();
+
+  let paceCount = 3;
+  let recommendedPace = 4;
+  let spinCount = 3;
+  let recommendedSpin = 2;
+  let batCount = 8;
+
+  if (tweaksText.includes("spin") && (tweaksText.includes("rotate") || tweaksText.includes("less") || tweaksText.includes("reduce"))) {
+    spinCount = 3;
+    recommendedSpin = 2;
+  } else if (tweaksText.includes("spin") && (tweaksText.includes("add") || tweaksText.includes("more") || tweaksText.includes("extra"))) {
+    spinCount = 2;
+    recommendedSpin = 3;
+  }
+
+  if (tweaksText.includes("pace") && (tweaksText.includes("add") || tweaksText.includes("more") || tweaksText.includes("extra") || tweaksText.includes("fast"))) {
+    paceCount = 3;
+    recommendedPace = 4;
+  } else if (tweaksText.includes("pace") && (tweaksText.includes("rotate") || tweaksText.includes("less") || tweaksText.includes("reduce"))) {
+    paceCount = 4;
+    recommendedPace = 3;
+  }
+
+  document.getElementById('xai-pace-count').innerText = `${paceCount} / ${recommendedPace}`;
+  document.getElementById('xai-pace-bar').style.setProperty('--w', `${(paceCount / recommendedPace) * 100}%`);
+  document.getElementById('xai-pace-bar').classList.add('animated');
+
+  document.getElementById('xai-spin-count').innerText = `${spinCount} / ${recommendedSpin}`;
+  document.getElementById('xai-spin-bar').style.setProperty('--w', `${(spinCount / recommendedSpin) * 100}%`);
+  document.getElementById('xai-spin-bar').classList.add('animated');
+
+  document.getElementById('xai-bat-count').innerText = `${batCount} / 8`;
+  document.getElementById('xai-bat-bar').style.setProperty('--w', '100%');
+  document.getElementById('xai-bat-bar').classList.add('animated');
+}
+
+// Generate match progression over-by-over log
+function generateMatchSimulation(state, intel) {
+  const team1 = state.team1;
+  const team2 = state.team2;
+  const chasingTeam = team2; 
+  const battingTeam = team1;
+
+  const avgVenueScore = state.feature_vector ? state.feature_vector[9] : 168;
+  const target = Math.round((avgVenueScore || 168) + (Math.random() * 20 - 10));
+
+  const winProbChasing = state.win_prob_chasing || 0.50;
+  const predictedWinnerChasing = winProbChasing > 0.5;
+
+  let currentRuns = 0;
+  let currentWickets = 0;
+  simulatedOversData = [];
+
+  // Over 0
+  simulatedOversData.push({
+    over: 0,
+    runs: 0,
+    wickets: 0,
+    runsInOver: 0,
+    wicketsInOver: 0,
+    prob: winProbChasing * 100,
+    reqRunRate: (target / 20).toFixed(2),
+    currRunRate: "0.00",
+    commentary: `Start of the chase! ${chasingTeam} need ${target} runs from 120 balls to win. Openers walking out.`,
+    drivers: [
+      { name: "Required Run Rate", value: `Req RR: ${(target/20).toFixed(2)}`, impact: "-0.5%" },
+      { name: "Venue Chasing Advantage", value: `${(state.ext_scores && state.ext_scores.chasing_win_rate ? (state.ext_scores.chasing_win_rate*100).toFixed(1) : "52.0")}% historical win rate`, impact: "+2.1%" },
+      { name: "Wickets in Hand", value: "10 wickets remaining", impact: "+5.0%" }
+    ]
+  });
+
+  const overCommentaries = [
+    ["Cautious start against opening swing. Scoreboard gets rolling.", "Excellent line and length. Batsmen struggling to clear the circle.", "Wicket! Lofted drive mistimed, caught at mid-on.", "Big over! Consecutive boundaries whipped through the leg side.", "Tight bowling, back of a length keeping batsmen quiet."],
+    ["Spin introduced. Batsmen rotating strike efficiently.", "Wicket! Bowled attempting a sweep. Stumps disturbed.", "Huge six! Smashed down the ground into the second tier.", "Steady accumulation, keeping the run rate under control.", "Quick running, steal a couple to close the over."],
+    ["Bowling change pays off immediately. Wicket falls!", "Expensive over! 14 runs taken off the part-timer.", "Required rate climbing, dot ball pressure mounting.", "Wicket! Clean bowled by a beauty of a yorker. Massive blow!", "Six! Aggressive pull shot clears the deep square boundary."],
+    ["Wicket! Run out after a complete mix-up. Disaster!", "Excellent death bowling. Pinpoint yorkers conceding only singles.", "Big over! Boundary over cover brings the target closer.", "Wicket! Caught in the deep attempting to finish it.", "Unbelievable finish! Boundary struck to seal the match!"]
+  ];
+
+  for (let o = 1; o <= 20; o++) {
+    if (currentRuns >= target || currentWickets >= 10) break;
+
+    let runsInOver = 0;
+    let wicketsInOver = 0;
+
+    if (o <= 6) {
+      runsInOver = Math.round(5 + Math.random() * 8);
+      wicketsInOver = Math.random() < 0.15 ? 1 : 0;
+    } else if (o <= 15) {
+      runsInOver = Math.round(4 + Math.random() * 10);
+      wicketsInOver = Math.random() < 0.18 ? (Math.random() < 0.1 ? 2 : 1) : 0;
+    } else {
+      runsInOver = Math.round(6 + Math.random() * 14);
+      wicketsInOver = Math.random() < 0.28 ? (Math.random() < 0.15 ? 2 : 1) : 0;
+    }
+
+    // Force outcome to align with prediction in death overs
+    if (o === 19 || o === 20) {
+      const remainingRuns = target - currentRuns;
+      if (predictedWinnerChasing) {
+        runsInOver = remainingRuns + Math.round(Math.random() * 2);
+        wicketsInOver = 0;
+      } else {
+        runsInOver = Math.min(remainingRuns - 4, Math.round(Math.random() * 7));
+        if (currentWickets < 9 && o === 20) currentWickets = 9;
+        wicketsInOver = Math.random() < 0.4 ? 1 : 0;
+      }
+    }
+
+    currentRuns += runsInOver;
+    currentWickets += wicketsInOver;
+
+    if (currentWickets > 10) {
+      currentWickets = 10;
+      currentRuns -= runsInOver;
+      runsInOver = 0;
+    }
+    if (currentRuns >= target) {
+      currentRuns = target;
+      const prevRuns = currentRuns - runsInOver;
+      runsInOver = target - prevRuns;
+    }
+
+    let overProb = 0;
+    if (currentRuns >= target) {
+      overProb = 100;
+    } else if (currentWickets >= 10 || (o === 20 && currentRuns < target)) {
+      overProb = 0;
+    } else {
+      const ballsRem = (20 - o) * 6;
+      const runsRem = target - currentRuns;
+      const reqRR = (runsRem / (ballsRem / 6));
+      const baseReqRR = target / 20;
+      const rrDiff = reqRR - baseReqRR;
+      
+      let shift = - (currentWickets * 9.5) - (rrDiff * 7.5);
+      if (state.is_night_match && state.ext_scores && state.ext_scores.dew_risk_score) {
+        shift += (o * state.ext_scores.dew_risk_score * 0.7);
+      }
+      
+      overProb = (winProbChasing * 100) + shift;
+      overProb = Math.max(4, Math.min(96, overProb));
+    }
+
+    const commPool = overCommentaries[Math.min(3, Math.floor((o - 1) / 5))];
+    const baseComm = commPool[Math.floor(Math.random() * commPool.length)];
+    let commentary = `Over ${o}: ${runsInOver} runs, ${wicketsInOver} wicket(s). ${baseComm} Score: ${chasingTeam} ${currentRuns}/${currentWickets}.`;
+
+    if (currentRuns >= target) {
+      commentary += ` MATCH OVER! ${chasingTeam} chase down the target and win by ${10 - currentWickets} wickets!`;
+    } else if (currentWickets >= 10) {
+      commentary += ` ALL OUT! ${chasingTeam} bowled out for ${currentRuns}. ${battingTeam} win by ${target - currentRuns} runs!`;
+    } else if (o === 20) {
+      commentary += ` END OF INNINGS! ${chasingTeam} fall short by ${target - 1 - currentRuns} runs. ${battingTeam} win!`;
+    }
+
+    const ballsRemaining = (20 - o) * 6;
+    const runsRemaining = target - currentRuns;
+    const reqRRVal = (runsRemaining / (ballsRemaining / 6)).toFixed(2);
+    const currRRVal = (currentRuns / o).toFixed(2);
+
+    let overDrivers = [];
+    if (currentRuns >= target) {
+      overDrivers = [{ name: "Target Reached", value: "Victory secured", impact: "100.0%" }];
+    } else if (currentWickets >= 10) {
+      overDrivers = [{ name: "All Out", value: "Resources depleted", impact: "0.0%" }];
+    } else {
+      const rrImpact = parseFloat(reqRRVal) > 9.5 ? `-${((parseFloat(reqRRVal) - 9.5) * 3).toFixed(1)}%` : `+${((9.5 - parseFloat(reqRRVal)) * 2).toFixed(1)}%`;
+      const wktImpact = currentWickets > 3 ? `-${(currentWickets * 3.5).toFixed(1)}%` : `+${((3 - currentWickets) * 2).toFixed(1)}%`;
+      overDrivers = [
+        { name: "Required Run Rate", value: `Req RR: ${reqRRVal} (vs Curr RR: ${currRRVal})`, impact: rrImpact },
+        { name: "Wicket Resources", value: `${10 - currentWickets} wickets in hand`, impact: wktImpact },
+        { name: "Remaining Deliveries", value: `${ballsRemaining} balls left`, impact: o > 15 ? "-3.8%" : "-0.4%" }
+      ];
+      if (state.is_night_match && state.ext_scores && state.ext_scores.dew_risk_score > 0.4 && o > 10) {
+        overDrivers.push({ name: "Dew Interference", value: "Grip issues active for bowlers", impact: "+3.2% Chasing" });
+      }
+    }
+
+    simulatedOversData.push({
+      over: o,
+      runs: currentRuns,
+      wickets: currentWickets,
+      runsInOver: runsInOver,
+      wicketsInOver: wicketsInOver,
+      prob: overProb,
+      reqRunRate: currentRuns >= target ? "0.00" : reqRRVal,
+      currRunRate: currRRVal,
+      commentary: commentary,
+      drivers: overDrivers
+    });
+
+    if (currentRuns >= target || currentWickets >= 10) break;
+  }
+}
+
+// Update Live Pit-Wall UI for specific over
+function updateLivePitWall(overIndex) {
+  if (simulatedOversData.length === 0) return;
+
+  currentSimOver = overIndex;
+  const data = simulatedOversData[overIndex];
+  const chasingTeam = simulatedOversData[0].commentary.split(" need")[0].split("Start of the chase! ")[1] || "CSK";
+
+  document.getElementById('sim-over-num').innerText = data.over;
+
+  const scoreText = data.over === 0 ? "0 / 0" : `${data.runs} / ${data.wickets}`;
+  document.getElementById('pitwall-live-score').innerText = `${scoreText} (${data.over} Overs)`;
+  document.getElementById('pitwall-live-req').innerText = data.commentary;
+
+  document.getElementById('sim-prev-btn').disabled = (overIndex === 0);
+  document.getElementById('sim-prev-btn').style.opacity = (overIndex === 0) ? '0.3' : '1.0';
+  document.getElementById('sim-next-btn').disabled = (overIndex === simulatedOversData.length - 1);
+  document.getElementById('sim-next-btn').style.opacity = (overIndex === simulatedOversData.length - 1) ? '0.3' : '1.0';
+
+  const probVal = data.prob;
+  document.getElementById('pitwall-gauge-val').innerText = probVal.toFixed(1) + '%';
+  document.getElementById('pitwall-gauge-team').innerText = `${chasingTeam} Win Prob (Chasing)`;
+
+  const arc = document.getElementById('pitwall-gauge-arc');
+  const offset = 754 - (754 * (probVal / 100));
+  arc.style.strokeDashoffset = offset;
+
+  if (probVal > 50) {
+    document.getElementById('pitwall-gauge-val').style.color = 'var(--emerald)';
+    arc.style.stroke = 'var(--emerald)';
+  } else {
+    document.getElementById('pitwall-gauge-val').style.color = 'var(--rose)';
+    arc.style.stroke = 'var(--rose)';
+  }
+
+  const logList = document.getElementById('pitwall-log-list');
+  logList.innerHTML = simulatedOversData.slice(0, overIndex + 1).map(d => `
+    <div style="margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; gap:12px;">
+      <span class="mono" style="color:var(--amber); flex-shrink:0; width:55px;">Over ${d.over}</span>
+      <span style="color:${d.wicketsInOver > 0 ? 'var(--rose)' : 'var(--text)'};">${d.commentary}</span>
+    </div>
+  `).join('');
+  logList.scrollTop = logList.scrollHeight;
+
+  const driversList = document.getElementById('pitwall-drivers-list');
+  driversList.innerHTML = data.drivers.map(drv => {
+    const isNeg = drv.impact.startsWith('-');
+    const color = isNeg ? 'var(--rose)' : 'var(--emerald)';
+    return `
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-size:13px; font-weight:500; color:var(--text);">${drv.name}</span>
+          <span class="mono" style="color:${color}; font-weight:600;">${drv.impact}</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted);">${drv.value}</div>
+      </div>
+    `;
+  }).join('');
+
+  if (probChartInstance) {
+    const chartData = simulatedOversData.map((d, i) => (i <= overIndex) ? d.prob : null);
+    probChartInstance.data.datasets[0].data = chartData;
+    probChartInstance.update();
+  }
+}
+
+// Play/Pause Match Simulation Auto-progression
+function togglePlaySimulation() {
+  const playBtn = document.getElementById('sim-play-btn');
+  if (playInterval) {
+    clearInterval(playInterval);
+    playInterval = null;
+    playBtn.innerText = 'Play';
+    playBtn.style.color = 'var(--amber)';
+  } else {
+    playBtn.innerText = 'Pause';
+    playBtn.style.color = 'var(--rose)';
+
+    if (currentSimOver === simulatedOversData.length - 1) {
+      updateLivePitWall(0);
+    }
+
+    playInterval = setInterval(() => {
+      if (currentSimOver < simulatedOversData.length - 1) {
+        updateLivePitWall(currentSimOver + 1);
+      } else {
+        togglePlaySimulation();
+      }
+    }, 1500);
+  }
+}
+
+// Main Simulation Button Trigger
+document.getElementById('simulate-btn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  
+  const matchId = document.getElementById('schedule-dropdown').value;
+  if (!matchId) {
+    alert("Please select a match first.");
+    return;
+  }
+  
+  const matchInfo = scheduleData.find(m => m.match_id === matchId);
+  if (!matchInfo) return;
+
+  const btn = document.getElementById('simulate-btn');
+  btn.innerText = 'Running Agents...';
+  btn.style.opacity = '0.7';
+  btn.disabled = true;
+
+  currentMatchId = matchId;
+
+  // Reset simulation play state
+  if (playInterval) {
+    clearInterval(playInterval);
+    playInterval = null;
+  }
+  document.getElementById('sim-play-btn').innerText = 'Play';
+  document.getElementById('sim-play-btn').style.color = 'var(--amber)';
+
+  document.getElementById('reality-check-section').style.display = 'none';
+  document.getElementById('reality-check-content').style.display = 'none';
+  document.getElementById('reveal-btn').style.display = 'block';
+  document.getElementById('reveal-btn').innerText = 'Reveal Actual Result';
+
+  const reqBody = {
+    match_id: matchInfo.match_id,
+    pov_team: document.getElementById('pov-team-dropdown').value || matchInfo.team1,
+    team1: matchInfo.team1,
+    team2: matchInfo.team2,
+    venue: matchInfo.venue,
+    match_date: matchInfo.date,
+    season: "2026",
+    is_night_match: true, 
+    human_override: {}
+  };
+
+  try {
+    const res = await fetch('http://localhost:8001/simulate-match', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(reqBody)
+    });
+    const state = await res.json();
+    
+    // Update Pit-Wall Titles
+    document.getElementById('pitwall-match-title').innerText = `${state.team1} vs ${state.team2}`;
+    document.getElementById('pitwall-match-subtitle').innerText = `${state.venue} • ${state.is_night_match ? 'Night' : 'Day'} Match • ${state.season}`;
+
+    // Parse Narrative JSON for Toss and Squad Intel
+    if (state.narrative) {
+      try {
+        let rawNarrative = state.narrative.replace(/```json/gi, '').replace(/```/g, '').replace(/[“”]/g, '"').trim();
+        const intel = JSON.parse(rawNarrative);
+        
+        document.getElementById('global-tactical-brief').style.display = 'block';
+        
+        // Toss Card
+        document.getElementById('global-toss-badge').innerText = intel.toss_recommendation || 'UNKNOWN';
+        document.getElementById('global-toss-badge').className = (intel.toss_recommendation && intel.toss_recommendation.includes('BOWL')) ? 'badge badge-emerald' : 'badge badge-blue';
+        document.getElementById('global-toss-rationale').innerText = intel.toss_rationale || '--';
+        
+        // Squad Card
+        document.getElementById('global-squad-tweaks').innerText = intel.squad_tweaks || '--';
+        
+        // Update Tab 2 (Explainable AI) Components
+        updateExplainableCharts(state);
+        updateExplainableSquad(state, intel);
+
+        // Generate and start Over-by-Over Simulation for Tab 3
+        generateMatchSimulation(state, intel);
+        updateLivePitWall(0);
+
+        // Enable Simulation buttons
+        const prevBtn = document.getElementById('sim-prev-btn');
+        const nextBtn = document.getElementById('sim-next-btn');
+        const playBtn = document.getElementById('sim-play-btn');
+        prevBtn.disabled = false;
+        prevBtn.style.opacity = '1.0';
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1.0';
+        playBtn.disabled = false;
+        playBtn.style.opacity = '1.0';
+
+        // Fill Reality Check Prediction cache
+        const team2Prob = state.win_prob_chasing !== undefined ? state.win_prob_chasing : 0.5;
+        document.getElementById('rc-pred-winner').innerText = team2Prob > 0.5 ? state.team2 : state.team1;
+        document.getElementById('rc-pred-toss').innerText = intel.toss_recommendation || 'N/A';
+        
+        document.getElementById('reality-check-section').style.display = 'block';
+
+      } catch(parseErr) {
+        console.warn("Could not parse narrative as JSON, falling back.", parseErr);
+        
+        const fallbackIntel = {
+          toss_recommendation: state.win_prob_chasing > 0.5 ? "BOWL FIRST" : "BAT FIRST",
+          toss_rationale: `Chasing team win probability is ${(state.win_prob_chasing*100).toFixed(1)}%.`,
+          squad_tweaks: "Select rotating fast bowlers to manage fatigue index."
+        };
+
+        document.getElementById('global-tactical-brief').style.display = 'block';
+        document.getElementById('global-toss-badge').innerText = fallbackIntel.toss_recommendation;
+        document.getElementById('global-toss-badge').className = fallbackIntel.toss_recommendation.includes('BOWL') ? 'badge badge-emerald' : 'badge badge-blue';
+        document.getElementById('global-toss-rationale').innerText = fallbackIntel.toss_rationale;
+        document.getElementById('global-squad-tweaks').innerText = state.narrative || fallbackIntel.squad_tweaks;
+        
+        updateExplainableCharts(state);
+        updateExplainableSquad(state, fallbackIntel);
+
+        generateMatchSimulation(state, fallbackIntel);
+        updateLivePitWall(0);
+
+        const prevBtn = document.getElementById('sim-prev-btn');
+        const nextBtn = document.getElementById('sim-next-btn');
+        const playBtn = document.getElementById('sim-play-btn');
+        prevBtn.disabled = false;
+        prevBtn.style.opacity = '1.0';
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1.0';
+        playBtn.disabled = false;
+        playBtn.style.opacity = '1.0';
+
+        const team2Prob = state.win_prob_chasing !== undefined ? state.win_prob_chasing : 0.5;
+        document.getElementById('rc-pred-winner').innerText = team2Prob > 0.5 ? state.team2 : state.team1;
+        document.getElementById('rc-pred-toss').innerText = fallbackIntel.toss_recommendation;
+        document.getElementById('reality-check-section').style.display = 'block';
+      }
+    }
+
+  } catch(e) {
+    console.error("Simulation failed", e);
+    alert("Simulation failed: " + e.message);
+  } finally {
+    btn.innerText = 'Run Prediction';
+    btn.style.opacity = '1';
+    btn.disabled = false;
+  }
+});
+
+// Hook up simulation control buttons
+document.getElementById('sim-prev-btn').addEventListener('click', () => {
+  if (currentSimOver > 0) {
+    if (playInterval) togglePlaySimulation(); // pause if playing
+    updateLivePitWall(currentSimOver - 1);
+  }
+});
+
+document.getElementById('sim-next-btn').addEventListener('click', () => {
+  if (currentSimOver < simulatedOversData.length - 1) {
+    if (playInterval) togglePlaySimulation(); // pause if playing
+    updateLivePitWall(currentSimOver + 1);
+  }
+});
+
+document.getElementById('sim-play-btn').addEventListener('click', () => {
+  togglePlaySimulation();
+});
+
+// Reality Check Reveal Logic
+document.getElementById('reveal-btn').addEventListener('click', async () => {
+  if (!currentMatchId) return;
+  const btn = document.getElementById('reveal-btn');
+  btn.innerText = 'Fetching...';
+  
+  try {
+    const res = await fetch(`http://localhost:8001/match-result/${currentMatchId}`);
+    if (!res.ok) throw new Error("Result not found in database");
+    const result = await res.json();
+    
+    document.getElementById('rc-actual-winner').innerText = result.winner;
+    const tossWinner = result.toss_decision_bat ? "Bat First" : "Bowl First";
+    document.getElementById('rc-actual-toss').innerText = `Toss: ${tossWinner} | Target: ${result.team1_score}`;
+    
+    document.getElementById('reality-check-content').style.display = 'block';
+    btn.style.display = 'none';
+  } catch(e) {
+    alert("Could not fetch actual result for this match.");
+    btn.innerText = 'Reveal Actual Result';
+  }
+});
+
+// Run fetch on load
+window.addEventListener('DOMContentLoaded', () => {
+  fetchModelInfo();
+  fetchSchedule();
+  initCharts();
+});
+
+</script>
+
 </body>
 </html>
-<!-- END OF FILE Paste June 11, 2026 - 11:15AM -->

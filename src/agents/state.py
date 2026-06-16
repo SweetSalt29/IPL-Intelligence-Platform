@@ -42,6 +42,7 @@ class MatchState(TypedDict, total=False):
     match_id:       str
     team1:          str       # team batting first
     team2:          str       # team batting second (chasing)
+    pov_team:       str       # team perspective for narrative
     venue:          str
     match_date:     str       # YYYY-MM-DD
     season:         str

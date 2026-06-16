@@ -58,32 +58,38 @@ def _build_prompt(state: MatchState) -> str:
     override_note  = f"\nCoach override context: {override}" if override else ""
     warnings_note  = f"\nData warnings: {'; '.join(warnings)}" if warnings else ""
 
-    return f"""You are the intelligence system for an IPL franchise pit-wall.
-Produce a concise tactical brief (150–200 words) for team management.
-Be direct. No hedging. Use cricket terminology. Speak like a senior analyst.
+    features = state.get("features", {})
+    spin_factor = features.get("venue_spin_factor", 0.5) if isinstance(features, dict) else 0.5
+    chasing_win_rate = features.get("venue_chasing_win_rate", 0.5) if isinstance(features, dict) else 0.5
 
-MATCH: {team1} (batting first) vs {team2} (chasing) at {venue}
+    pov_team = state.get("pov_team")
+    if not pov_team or pov_team == "None":
+        pov_team = team1
+    opponent = team2 if pov_team == team1 else team1
+
+    return f"""You are the Head of Analytics for {pov_team}.
+Your job is to analyze the conditions and provide a Toss Recommendation and Squad Roster Tweaks for YOUR team ({pov_team}) against your opponent ({opponent}).
+
+MATCH: {team1} vs {team2} at {venue}
 
 PREDICTION:
   {team2} (chasing) win probability: {win_prob:.1%}
-  {team1} (batting first) win probability: {win_bat:.1%}
   Confidence: {confidence}
 
-TOP PREDICTION DRIVERS:
-{driver_lines}
-
-EXTRANEOUS FACTORS:
+CONDITIONS & FACTORS:
   Dew: {dew_note}
-  Fatigue (Team 1): {ext.get('team1_fatigue_index', 'N/A')}
-  Fatigue (Team 2): {ext.get('team2_fatigue_index', 'N/A')}
   Pitch Deterioration Index: {ext.get('pitch_deterioration_index', 0.5):.2f}
-  Heat stress: {ext.get('heat_stress_index', 0.3):.2f}
+  Venue Spin Factor: {spin_factor:.2f}
+  Venue Chasing Win Rate: {chasing_win_rate:.2%}
 {override_note}{warnings_note}
 
-TOSS RECOMMENDATION: {toss_rec}
-
-Write the tactical brief now. Start with the toss recommendation.
-End with 1–2 specific bowling or batting order suggestions."""
+You must output a strictly valid JSON object with EXACTLY these three keys:
+{{
+  "toss_recommendation": "BOWL FIRST" or "BAT FIRST",
+  "toss_rationale": "1-2 sentences explaining why, citing dew or pitch deterioration.",
+  "squad_tweaks": "1-2 sentences suggesting changes to {pov_team}'s playing XI, citing spin factor, fatigue, or matchup advantages."
+}}
+Output ONLY the raw JSON. Do not include markdown formatting like ```json."""
 
 
 def _fallback_narrative(state: MatchState) -> str:
@@ -104,16 +110,12 @@ def _fallback_narrative(state: MatchState) -> str:
     fat1     = ext.get("team1_fatigue_index", 0.3)
     fat2     = ext.get("team2_fatigue_index", 0.3)
 
-    return (
-        f"TOSS RECOMMENDATION: {toss_rec}.\n\n"
-        f"{team2} holds a {win_prob:.1%} win probability (chasing). "
-        f"Confidence: {confidence}. "
-        f"Primary driver: {get_feature_description(top_feat)}. "
-        f"{dew_str} "
-        f"Fatigue — {team1}: {fat1:.2f}, {team2}: {fat2:.2f}. "
-        f"{'Watch ' + team1 + ' bowling in death overs — fatigue risk elevated.' if fat1 > 0.6 else ''}"
-        f"\n\n[Fallback narrative — set GROQ_API_KEY in .env for LLM brief.]"
-    )
+    import json
+    return json.dumps({
+        "toss_recommendation": toss_rec.upper(),
+        "toss_rationale": f"{team2} win probability is {win_prob:.1%}. {dew_str}",
+        "squad_tweaks": f"Fatigue metrics ({team1}: {fat1:.2f}, {team2}: {fat2:.2f}) suggest rotating fast bowlers."
+    })
 
 
 def narrative_agent(state: MatchState) -> MatchState:
@@ -137,7 +139,11 @@ def narrative_agent(state: MatchState) -> MatchState:
         llm      = ChatGroq(model=GROQ_MODEL, api_key=api_key, max_tokens=400, temperature=0.3)
         prompt   = _build_prompt(state)
         response = llm.invoke([HumanMessage(content=prompt)])
-        narrative = response.content
+        narrative = response.content.strip()
+        if narrative.startswith("```json"):
+            narrative = narrative[7:-3].strip()
+        elif narrative.startswith("```"):
+            narrative = narrative[3:-3].strip()
         logger.info(f"  Narrative generated via Groq {GROQ_MODEL} ({len(narrative)} chars)")
 
     except Exception as e:
