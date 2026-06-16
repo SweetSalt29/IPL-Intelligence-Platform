@@ -117,7 +117,7 @@ def feature_agent(state: MatchState) -> MatchState:
     raw_vector = {
         # Match context
         "toss_winner_is_team1":        override.get("toss_winner_is_team1",   0),
-        "toss_decision_bat":           override.get("toss_decision_bat",       1),
+        "toss_decision_bat":           override.get("toss_decision_bat",       0),
         "is_day_match":                int(not state.get("is_night_match", True)),
         "season_stage":                override.get("season_stage",            0),
         "match_number_in_season":      sched1.get("season_match_num",          1),
