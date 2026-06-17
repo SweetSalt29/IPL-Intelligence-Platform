@@ -21,5 +21,5 @@ ENV PYTHONUNBUFFERED=1
 # Expose the API and Dashboard port
 EXPOSE 8001
 
-# Run the FastAPI server using Uvicorn directly for better performance
-CMD ["python", "-m", "uvicorn", "src.models.serve:app", "--host", "0.0.0.0", "--port", "8001"]
+# Run the FastAPI server using Uvicorn directly for better performance, supporting dynamic cloud ports
+CMD uvicorn src.models.serve:app --host 0.0.0.0 --port ${PORT:-8001}
