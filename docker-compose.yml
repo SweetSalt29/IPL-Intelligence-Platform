@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  ipl-predictor:
+    build: .
+    container_name: ipl-predictor
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    restart: unless-stopped

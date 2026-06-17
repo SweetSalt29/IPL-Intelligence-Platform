@@ -37,6 +37,7 @@ from loguru import logger
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.features.schema_loader import (
@@ -369,6 +370,9 @@ def get_match_result(match_id: str):
             "winner": winner,
             "chasing_team_won": bool(chasing_team_won)
         }
+
+# Mount dashboard static files at root
+app.mount("/", StaticFiles(directory="dashboard", html=True), name="dashboard")
 
 
 # ── Dev server entry ───────────────────────────────────────────────────────────
